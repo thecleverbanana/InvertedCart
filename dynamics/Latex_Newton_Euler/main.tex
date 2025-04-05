@@ -1,0 +1,62 @@
+\documentclass[12pt]{article} 
+
+% --- Layout ---
+\usepackage[a4paper, margin=1in]{geometry} 
+\usepackage{parskip}  
+\usepackage{setspace} 
+\onehalfspacing       
+
+% --- Font ---
+\usepackage{lmodern}  
+\usepackage[T1]{fontenc}
+
+% --- Math Packages ---
+\usepackage{mathtools}
+\allowdisplaybreaks
+
+
+\begin{document}
+
+\title{\Huge Newton-Euler Method}
+\author{Jerry Wu}
+\date{}
+\maketitle
+
+\section*{Linearized System}
+\begin{align*}
+\mathbf{A} &= 
+\begin{bmatrix}
+0 & 1 & 0 & 0 \\[8pt]
+a_{21} & 0 & a_{23} & 0 \\[8pt]
+0 & 0 & 0 & 1 \\[8pt]
+a_{41} & 0 & a_{43} & 0
+\end{bmatrix}, 
+\quad 
+\mathbf{B} = 
+\begin{bmatrix}
+0 \\[8pt]
+b_2 \\[8pt]
+0 \\[8pt]
+b_4
+\end{bmatrix} \\[12pt]
+%
+\text{where} \quad
+D &= I_b I_w + I_b M_b r^2 + I_b M_w r^2 + I_w L_b^2 M_b + L_b^2 M_b M_w r^2 \\[8pt]
+%
+a_{21} &= -\frac{L_b^2 M_b^2 g r}{D}, 
+\quad a_{23} = -\frac{L_b^2 M_b^2 g r^2}{D} \\[8pt]
+%
+a_{41} &= \frac{I_w L_b M_b g + L_b^2 M_b^2 g r + L_b M_b^2 g r^2 + L_b M_b M_w g r^2}{r D} \\[8pt]
+%
+a_{43} &= \frac{I_w L_b M_b g r + L_b^2 M_b^2 g r^2 + L_b M_b^2 g r^3 + L_b M_b M_w g r^3}{r D} \\[8pt]
+%
+b_2 &= -\frac{I_b r + L_b^2 M_b r + L_b M_b r^2}{D}, 
+\quad b_4 = \frac{I_b r + I_w r + L_b^2 M_b r + 2 L_b M_b r^2 + M_b r^3 + M_w r^3}{r D}
+\end{align*}
+
+
+
+
+
+
+\end{document}

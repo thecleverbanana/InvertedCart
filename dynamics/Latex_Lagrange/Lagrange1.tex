@@ -1,0 +1,169 @@
+\documentclass[12pt]{article} 
+
+% --- Layout ---
+\usepackage[a4paper, margin=1in]{geometry} 
+\usepackage{parskip}  
+\usepackage{setspace} 
+\onehalfspacing       
+
+% --- Font ---
+\usepackage{lmodern}  
+\usepackage[T1]{fontenc}
+
+% --- Math Packages ---
+\usepackage{mathtools}
+\allowdisplaybreaks
+
+
+\begin{document}
+
+\title{\Huge Lagrange Method I}
+\author{Jerry Wu}
+\date{}
+\maketitle
+
+\section*{Define Lagrange}
+\begin{multline*}
+T= 0.5 I_{b} \dot{\phi}^{2} + \frac{0.5 I_{w} \dot{x}^{2}}{r^{2}} + 0.5 M_{b} \left(L_{b}^{2} \dot{\phi}^{2} + 2 L_{b} \dot{\phi} \dot{x} \cos{\left(\phi \right)} + \dot{x}^{2}\right) + 0.5 M_{w} \dot{x}^{2}
+\end{multline*}
+\begin{multline*}
+T= L_{b} M_{b} g \cos{\left(\phi \right)}
+\end{multline*}
+\begin{multline*}
+L= 0.5 I_{b} \dot{\phi}^{2} + \frac{0.5 I_{w} \dot{x}^{2}}{r^{2}} - L_{b} M_{b} g \cos{\left(\phi \right)} + 0.5 M_{b} \left(L_{b}^{2} \dot{\phi}^{2} + 2 L_{b} \dot{\phi} \dot{x} \cos{\left(\phi \right)} + \dot{x}^{2}\right) + 0.5 M_{w} \dot{x}^{2}
+\end{multline*}
+
+\section*{X Coordinate}
+\begin{multline*}
+\frac{\partial L}{\partial \dot{x}}= \dot{\phi} \left(\frac{I_{b}}{r} + \frac{L_{b}^{2} M_{b}}{r} + L_{b} M_{b} \cos{\left(\phi \right)}\right) + \dot{x} \left(\frac{I_{w}}{r^{2}} + \frac{L_{b} M_{b} \cos{\left(\phi \right)}}{r} + M_{b} + M_{w}\right)
+\end{multline*}
+\begin{multline*}
+\frac{d}{dt}(\frac{\partial L}{\partial \dot{x}})= - L_{b} M_{b} \dot{\phi}^{2} \sin{\left(\phi \right)} - \frac{L_{b} M_{b} \dot{\phi} \dot{x} \sin{\left(\phi \right)}}{r} \\
++ \ddot{\phi} \left(\frac{I_{b}}{r} + \frac{L_{b}^{2} M_{b}}{r} + L_{b} M_{b} \cos{\left(\phi \right)}\right) + \ddot{x} \left(\frac{I_{w}}{r^{2}} + \frac{L_{b} M_{b} \cos{\left(\phi \right)}}{r} + M_{b} + M_{w}\right)
+\end{multline*}
+\begin{multline*}
+\frac{\partial L}{\partial x}= - \frac{L_{b} M_{b} \dot{\phi} \dot{x} \sin{\left(\phi \right)}}{r} + \frac{L_{b} M_{b} g \sin{\left(\phi \right)}}{r}
+\end{multline*}
+
+\begin{multline*}
+- L_{b} M_{b} \dot{\phi}^{2} \sin{\left(\phi \right)} - \frac{L_{b} M_{b} g \sin{\left(\phi \right)}}{r} + \ddot{\phi} \left(\frac{I_{b}}{r} + \frac{L_{b}^{2} M_{b}}{r} + L_{b} M_{b} \cos{\left(\phi \right)}\right)\\
++ \ddot{x} \left(\frac{I_{w}}{r^{2}} + \frac{L_{b} M_{b} \cos{\left(\phi \right)}}{r} + M_{b} + M_{w}\right)=0
+\end{multline*}
+
+\section*{$\theta$ Coordinate}
+\begin{multline*}
+\frac{\partial L}{\partial \dot{\theta}}= \dot{\phi} \left(I_{b} + L_{b}^{2} M_{b}\right) + \dot{x} L_{b} M_{b} \cos{\left(\phi \right)}
+\end{multline*}
+\begin{multline*}
+\frac{d}{dt}(\frac{\partial L}{\partial \dot{\theta}})= - L_{b} M_{b} \dot{\phi} \dot{x} \sin{\left(\phi \right)} + \ddot{\phi} \left(I_{b} + L_{b}^{2} M_{b}\right) + \ddot{x} L_{b} M_{b} \cos{\left(\phi \right)}
+\end{multline*}
+\begin{multline*}
+\frac{\partial L}{\partial \theta}= - L_{b} M_{b} \dot{\phi} \dot{x} \sin{\left(\phi \right)} + L_{b} M_{b} g \sin{\left(\phi \right)}
+\end{multline*}
+\begin{multline*}
+- L_{b} M_{b} g \sin{\left(\phi \right)} + \ddot{\phi} \left(I_{b} + L_{b}^{2} M_{b}\right) + \ddot{x}L_{b} M_{b} \cos{\left(\phi \right)}=\tau
+\end{multline*}
+
+
+\section*{Solve The Equation(By Sympy)}
+\begin{multline*}
+\ddot{x} = 
+- \frac{I_{b} r \tau}{D} 
+- \frac{L_{b}^{2} M_{b}^{2} g r^{2} \sin{\left(\phi \right)} \cos{\left(\phi \right)}}{D} 
+- \frac{L_{b}^{2} M_{b} r \tau}{D} 
+\\
+- \frac{L_{b} M_{b} r^{2} \tau \cos{\left(\phi \right)}}{D} 
++ \dot{\theta}^{2} \left(
+    \frac{I_{b} L_{b} M_{b} r^{2} \sin{\left(\phi \right)}}{D} 
+    + \frac{L_{b}^{3} M_{b}^{2} r^{2} \sin{\left(\phi \right)}}{D}
+\right) 
+\\
++ \dot{x}^{2} \left(
+    \frac{I_{b} L_{b} M_{b} \sin{\left(\phi \right)}}{D} 
+    + \frac{L_{b}^{3} M_{b}^{2} \sin{\left(\phi \right)}}{D}
+\right) 
+\\
++ \dot{x} \left(
+    \frac{2 I_{b} L_{b} M_{b} \dot{\theta} r \sin{\left(\phi \right)}}{D} 
+    + \frac{2 L_{b}^{3} M_{b}^{2} \dot{\theta} r \sin{\left(\phi \right)}}{D}
+\right)
+\end{multline*}
+
+\[
+D = I_{b} I_{w} + I_{b} M_{b} r^{2} + I_{b} M_{w} r^{2} + I_{w} L_{b}^{2} M_{b}
+\]
+
+\begin{multline*}
+\ddot{\theta} = 
+\frac{I_{b} r \tau}{D_r} 
++ \frac{I_{w} L_{b} M_{b} g r \sin{\left(\phi \right)}}{D_r} 
++ \frac{I_{w} r \tau}{D_r} 
++ \frac{L_{b}^{2} M_{b}^{2} g r^{2} \sin{\left(\phi \right)} \cos{\left(\phi \right)}}{D_r} 
+\\
++ \frac{L_{b}^{2} M_{b} r \tau}{D_r} 
++ \frac{L_{b} M_{b}^{2} g r^{3} \sin{\left(\phi \right)}}{D_r} 
++ \frac{L_{b} M_{b} M_{w} g r^{3} \sin{\left(\phi \right)}}{D_r} 
++ \frac{2 L_{b} M_{b} r^{2} \tau \cos{\left(\phi \right)}}{D_r} 
+\\
++ \frac{M_{b} r^{3} \tau}{D_r} 
++ \frac{M_{w} r^{3} \tau}{D_r} 
++ \dot{\theta}^{2} \left(
+    - \frac{I_{b} L_{b} M_{b} r^{2} \sin{\left(\phi \right)}}{D_r} 
+    - \frac{L_{b}^{3} M_{b}^{2} r^{2} \sin{\left(\phi \right)}}{D_r} 
+    - \frac{L_{b}^{2} M_{b}^{2} r^{3} \sin{\left(\phi \right)} \cos{\left(\phi \right)}}{D_r}
+\right) 
+\\
++ \dot{x}^{2} \left(
+    - \frac{I_{b} L_{b} M_{b} \sin{\left(\phi \right)}}{D_r} 
+    - \frac{L_{b}^{3} M_{b}^{2} \sin{\left(\phi \right)}}{D_r} 
+    - \frac{L_{b}^{2} M_{b}^{2} r \sin{\left(\phi \right)} \cos{\left(\phi \right)}}{D_r}
+\right) 
+\\
++ \dot{x} \left(
+    - \frac{2 I_{b} L_{b} M_{b} \dot{\theta} r \sin{\left(\phi \right)}}{D_r} 
+    - \frac{2 L_{b}^{3} M_{b}^{2} \dot{\theta} r \sin{\left(\phi \right)}}{D_r} 
+    - \frac{2 L_{b}^{2} M_{b}^{2} \dot{\theta} r^{2} \sin{\left(\phi \right)} \cos{\left(\phi \right)}}{D_r}
+\right)
+\end{multline*}
+\[
+D_r=I_{b} I_{w} r + I_{b} M_{b} r^{3} + I_{b} M_{w} r^{3} + I_{w} L_{b}^{2} M_{b} r - L_{b}^{2} M_{b}^{2} r^{3} \cos^{2}{\left(\phi \right)} + L_{b}^{2} M_{b}^{2} r^{3} + L_{b}^{2} M_{b} M_{w} r^{3}
+\]
+
+\section*{Linearized System}
+\begin{align*}
+\mathbf{A} &= 
+\begin{bmatrix}
+0 & 1 & 0 & 0 \\[8pt]
+a_{21} & 0 & a_{23} & 0 \\[8pt]
+0 & 0 & 0 & 1 \\[8pt]
+a_{41} & 0 & a_{43} & 0
+\end{bmatrix}, 
+\quad 
+\mathbf{B} = 
+\begin{bmatrix}
+0 \\[8pt]
+b_2 \\[8pt]
+0 \\[8pt]
+b_4
+\end{bmatrix} \\[12pt]
+%
+\text{where} \quad
+D &= I_b I_w + I_b M_b r^2 + I_b M_w r^2 + I_w L_b^2 M_b + L_b^2 M_b M_w r^2 \\[6pt]
+D' &= I_b I_w r + I_b M_b r^3 + I_b M_w r^3 + I_w L_b^2 M_b r + L_b^2 M_b M_w r^3 \\[12pt]
+%
+a_{21} &= -\frac{L_b^2 M_b^2 g r}{D}, 
+\quad a_{23} = -\frac{L_b^2 M_b^2 g r^2}{D} \\[8pt]
+%
+a_{41} &= \frac{I_w L_b M_b g + L_b^2 M_b^2 g r + L_b M_b^2 g r^2 + L_b M_b M_w g r^2}{D'} \\[8pt]
+%
+a_{43} &= \frac{I_w L_b M_b g r + L_b^2 M_b^2 g r^2 + L_b M_b^2 g r^3 + L_b M_b M_w g r^3}{D'} \\[8pt]
+%
+b_2 &= -\frac{I_b r + L_b^2 M_b r + L_b M_b r^2}{D} \\[8pt]
+%
+b_4 &= \frac{
+I_b r + I_w r + L_b^2 M_b r + 2 L_b M_b r^2 + M_b r^3 + M_w r^3
+}{D'}
+\end{align*}
+  
+
+\end{document}
