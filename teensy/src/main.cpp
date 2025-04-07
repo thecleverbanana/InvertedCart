@@ -89,18 +89,19 @@ void loop() {
   float dtheta_filtered = 0.9 * dtheta_filtered + 0.1 * dtheta;
   float dtheta_filtered_rad = radians(dtheta_filtered);
  
-  //Serial.printf("x = %7.4f m,   dx = %6.3f m/s²,   theta = %6.2f°,   dtheta = %6.2f°/s\n", x, dx_filtered, theta, dtheta_filtered);
+  Serial.printf("x = %7.4f m,   dx = %6.3f m/s²,   theta = %6.2f°,   dtheta = %6.2f°/s\n", x, dx_filtered, theta, dtheta_filtered);
   
   //Apply Control
-  float u = controller.updateLQR(x, dx_filtered, 0.0, dtheta_filtered);
-  Serial.printf("u derived by LQR = %7.4f tau", u);
+  float u = controller.updateLQR(x, dx_filtered, 0.0, dtheta_filtered_rad);
+  Serial.printf("u derived by LQR = %7.4f tau\n", u);
   
 
-  // Serial.printf("x = %7.4f m,   dx = %6.3f m/s²,  dtheta = %6.2f\n", x, dx_filtered, dtheta_filtered_rad);
-  // float u = controller.updateLQG(x, dx_filtered, 0.00, dtheta_filtered_rad);
+  Serial.printf("x = %7.4f m,   dx = %6.3f m/s²,  dtheta = %6.2f\n", x, dx_filtered, dtheta_filtered_rad);
+  // float u = controller.updateLQG(x, dx_filtered, theta_rad, dtheta_filtered_rad);
 
-  // leftMotor.setTorque(u);
-  // rightMotor.setTorque(u); 
+
+  // leftMotor.setTorque(-u);
+  // rightMotor.setTorque(-u); 
 
   if (Serial.available()) {
     char cmd = Serial.read();
