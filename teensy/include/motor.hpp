@@ -31,8 +31,6 @@ class Motor {
         uint8_t motorID;
         int8_t direction;
         FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16>* can;
-        const float staticFrictionThreshold = 0.1f;
-        const float staticFrictionBoost = 0.05f;
     };    
 
 #endif

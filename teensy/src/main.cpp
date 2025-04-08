@@ -12,17 +12,32 @@ Controller controller(&leftMotor, &rightMotor, 0.005);
 float leftInitialAngle = 0.0f;
 float rightInitialAngle = 0.0f;
 const float wheelRadius = 0.06f;
-float dx_filtered = 0.0f;
-float dtheta_filtered = 0.0f;
-static float prev_dtheta = 0.0f;
 
+IMU imu_board(
+  Wire2,
+  'Y', 'X', 'Z',    // axis mapping
+  true, true, true // flip
+);
 
-IMU imu; // MPU6050
+IMU imu_motor(
+  Wire1,
+  'X', 'Z', 'Y',    // axis mapping
+  true, false, true // flip
+);
+
+//IMU data
+imu_data imu_board_data, imu_motor_data;
+
+//For control
+float x[4];   //Real Data
+float x_hat[4];   //Predict Data
 
 void setup() {
+  // Initialize serial communication
   Serial.begin(115200);
   while (!Serial);
 
+  // Initialize Can Bus communication
   can1.begin();
   can1.setBaudRate(1000000);
 
@@ -31,13 +46,13 @@ void setup() {
   rightInitialAngle = rightMotor.initialization();
 
   // //clear multiturn and enable the save
-  // leftMotor.clearMultiTurn();
-  // delay(100);
-  // leftMotor.enableMultiTurnSave();
-  // delay(100);
-  // leftMotor.softRestart();
-  // delay(1000);
-  // leftMotor.verifyClearedZero();
+  leftMotor.clearMultiTurn();
+  delay(100);
+  leftMotor.enableMultiTurnSave();
+  delay(100);
+  leftMotor.softRestart();
+  delay(100);
+  leftMotor.verifyClearedZero();
 
   // set the initial torque
   leftMotor.setTorque(0.0f);
@@ -46,14 +61,38 @@ void setup() {
   Serial.println("Motors initialized with 0.0 N/m torque");
 
   //IMU initialization
-  imu.begin();
+  Wire1.setClock(1000000);  // 1 MHz
+  Wire2.setClock(1000000);  // 1 MHz
+
+  imu_board.begin();
   delay(100);
-  imu.calibrateAccel();
-  imu.calibratePitchAngle();
-  imu.calibratePitchRate();
+  imu_motor.begin();
+  delay(100);
+  imu_board.calibrateIMU();
+  delay(200);
+  imu_motor.calibrateIMU();
+  delay(200);
   Serial.println("MPU6050 Initialized");
 
-  //Initialize intial state value for controller
+  //Initialize intial state x_hat[] value for controller
+  imu_board.update();
+  imu_motor.update();
+
+  imu_board_data = imu_board.getIMUData();
+  imu_motor_data = imu_motor.getIMUData();
+
+  MotorStatus status;
+  if (leftMotor.getStatus(status)) {
+      float deltaAngle = status.angle_deg - leftInitialAngle;  // deg
+      x_hat[0] = wheelRadius * radians(deltaAngle);       //add negative to align with the direction     
+  }
+
+  x_hat[1] = imu_motor_data.ActualXacc;
+  // x_hat[1] = imu_board_data.ActualXacc;
+  x_hat[2] = imu_board_data.ActualYangle;
+  x_hat[3] = imu_board_data.ActualYgyro;
+  
+  controller.initializeState(x_hat);
 }
 
 void stopMotors() {
@@ -63,45 +102,32 @@ void stopMotors() {
 }
 
 void loop() {
-  // Get C values for estimation
-  imu.update();
+  // Get measured values for estimation
+  imu_board.update();
+  imu_motor.update();
 
-  float x = 0.0f;
-  float theta  = imu.getPitchAngleZeroed();      
-  float dtheta = imu.getPitchRateZeroed(); 
-
-  float ddtheta = (dtheta - prev_dtheta) / 0.1;
-  prev_dtheta = dtheta;
-
-  float theta_rad = radians(theta);
-  float dtheta_rad = radians(dtheta);
-  float ddtheta_rad = radians(ddtheta);
-
-  float dx = imu.getCartAccelCalibrated(theta_rad, dtheta_rad, ddtheta_rad);
+  imu_board_data = imu_board.getIMUData();
+  imu_motor_data = imu_motor.getIMUData();
 
   MotorStatus status;
   if (leftMotor.getStatus(status)) {
       float deltaAngle = status.angle_deg - leftInitialAngle;  // deg
-      x = -wheelRadius * radians(deltaAngle);       //add negative to align with the direction     
+      x[0] = -wheelRadius * radians(deltaAngle);       //add negative to align with the direction     
   }
 
-  float dx_filtered = 0.9 * dx_filtered + (1 - 0.9) * dx;
-  float dtheta_filtered = 0.9 * dtheta_filtered + 0.1 * dtheta;
-  float dtheta_filtered_rad = radians(dtheta_filtered);
- 
-  Serial.printf("x = %7.4f m,   dx = %6.3f m/s²,   theta = %6.2f°,   dtheta = %6.2f°/s\n", x, dx_filtered, theta, dtheta_filtered);
+  x[1] = imu_motor_data.ActualXacc;
+  // x[1] = imu_board_data.ActualXacc;
+  x[2] = imu_board_data.ActualYangle;
+  x[3] = imu_board_data.ActualYgyro;
+
+
+  Serial.printf("x = %7.4f m,   dx = %6.3f m/s²,   theta = %6.2frad,   dtheta = %6.2frad/s\n", x[0], x[1], x[2], x[3]);
   
   //Apply Control
-  float u = controller.updateLQR(x, dx_filtered, 0.0, dtheta_filtered_rad);
-  Serial.printf("u derived by LQR = %7.4f tau\n", u);
-  
+  float u = controller.updateLQG(x[0], x[1], x[2], x[3]);
 
-  Serial.printf("x = %7.4f m,   dx = %6.3f m/s²,  dtheta = %6.2f\n", x, dx_filtered, dtheta_filtered_rad);
-  // float u = controller.updateLQG(x, dx_filtered, theta_rad, dtheta_filtered_rad);
-
-
-  // leftMotor.setTorque(-u);
-  // rightMotor.setTorque(-u); 
+  leftMotor.setTorque(-u);
+  rightMotor.setTorque(-u); 
 
   if (Serial.available()) {
     char cmd = Serial.read();
@@ -112,12 +138,10 @@ void loop() {
   }
 
   //dynamically update control frequency
-  delay(5);
   // unsigned long now = millis();
   // static unsigned long last_time = 0;
   // float dt_dynamic = (now - last_time) / 1000.0f;
   // last_time = now;
   // controller.setDt(dt_dynamic);
-
-  controller.setDt(0.005f);
+  delay(5);
 }

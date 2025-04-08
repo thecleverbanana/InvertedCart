@@ -1,4 +1,5 @@
 #include "control.hpp"
+#include <cmath>
 
 Controller::Controller(Motor* left, Motor* right, float dt): motorLeft(left), motorRight(right) {}
 
@@ -41,6 +42,11 @@ float Controller::updateLQG(float x_meas, float dx_meas, float theta_meas, float
     for (int i = 0; i < 4; ++i) {
         tau -= K[i] * x_hat[i];
     }
+    if (abs(tau) < staticFrictionThreshold) {
+        float boost = staticFrictionBoost * ((tau > 0) - (tau < 0));
+        tau += boost;
+    }
+        
     tau = constrain(tau, -TORQUE_LIMIT, TORQUE_LIMIT);
 
     // --- 2. Observer prediction step ---
@@ -63,7 +69,7 @@ float Controller::updateLQG(float x_meas, float dx_meas, float theta_meas, float
     }
 
     // --- 4. Debug print ---
-    Serial.printf("x̂ = [%.3f, %.3f, %.3f, %.3f], τ = %.3f\n", x_hat[0], x_hat[1], x_hat[2], x_hat[3], tau);
+    Serial.printf("x̂ = [%.3fm, %.3fm/s, %.3frad, %.3frad/s], τ = %.3f\n", x_hat[0], x_hat[1], x_hat[2], x_hat[3], tau);
 
     return tau;
 }
@@ -71,4 +77,11 @@ float Controller::updateLQG(float x_meas, float dx_meas, float theta_meas, float
 void Controller:: setDt(float new_dt){
     dt = new_dt;
 }
+
+void Controller::initializeState(const float x_hat_init[4]) {
+    for (int i = 0; i < 4; ++i) {
+        this->x_hat[i] = x_hat_init[i];
+    }
+}
+
     

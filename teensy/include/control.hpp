@@ -10,6 +10,7 @@ public:
     float updateLQR(float x_meas, float dx_meas, float theta_meas, float dtheta_meas); //LQR Control (With feedback) and return u
     float updateLQG(float x_meas, float dx_meas, float theta_meas, float dtheta_meas);  // LQG return u
     void setDt(float new_dt);
+    void initializeState(const float x_hat_init[4]);
        
 private:
     Motor* motorLeft;
@@ -63,27 +64,28 @@ private:
 
     // LQR gain(K)
     float K[4] = {
-        0.63245553f,
-        1.47847779f,
-        4.41814557f,
-        1.61668767f
+        0.4472136f,
+        1.04725721f,
+        3.20271011f,
+        1.150277f
     };
 
     // LQG observer gain (L)
     float L[4][4] = {
-        { 0.436426749f, 0.693812742f, 0.0f, -0.0125151695f },
-        { 0.0693812742f, 1.03232586f, 0.0f, -0.251299683f },
-        { -0.00222406108f, -0.456315616f, 0.0f, 2.03883235f },
-        { -0.0125151695f, -2.51299683f, 0.0f, 11.2834092f }
-    };      
-    
+        { 3.21614944f, 0.149442707f, -0.00000537035564f, -0.0276865438f },
+        { 5.37993746f, 0.567016431f, -0.0000699907853f, -0.328123735f },
+        { -0.105258971f, -0.0381060942f, 0.000697209258f, 2.86961089f },
+        { -0.4429847f, -0.145832771f, 0.0023425395f, 14.3134533f }
+    };
+            
     //Control frequency;
     float dt = 0.005;
 
     //Global Variable
     float x_hat[4] = {0.0f, 0.0f, 0.0f, 0.0f};  
-    float u_prev = 0.0f;
 
+    const float staticFrictionThreshold = 0.15f;
+    const float staticFrictionBoost = 0.05f;
     const float TORQUE_LIMIT = 1.0f;
 };
 

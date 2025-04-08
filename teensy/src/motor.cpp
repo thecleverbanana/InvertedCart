@@ -40,8 +40,6 @@ void Motor::setSpeedRPM(int rpm) {
 }
 
 void Motor::setTorque(float torqueNm) {
-    // if (torqueNm > 0.0f && torqueNm < staticFrictionThreshold) torqueNm += staticFrictionBoost;
-    // if (torqueNm < 0.0f && torqueNm > -staticFrictionThreshold) torqueNm -= staticFrictionBoost;
 
     torqueNm *= direction; 
 
