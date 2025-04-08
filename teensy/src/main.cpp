@@ -2,6 +2,7 @@
 #include "motor.hpp"
 #include "control.hpp"
 #include "mpu6050.hpp" 
+#include "utils.hpp"
 
 // Global Objects
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can1;
@@ -13,17 +14,13 @@ float leftInitialAngle = 0.0f;
 float rightInitialAngle = 0.0f;
 const float wheelRadius = 0.06f;
 
-IMU imu_board(
-  Wire2,
-  'Y', 'X', 'Z',    // axis mapping
-  true, true, true // flip
-);
-
-IMU imu_motor(
-  Wire1,
-  'X', 'Z', 'Y',    // axis mapping
-  true, false, true // flip
-);
+// IMU imu_board(
+//   Wire2,
+//   'Y', 'X', 'Z',    // axis mapping
+//   true, true, true // flip
+// );
+IMU imu_board(Wire2, PI, 0.0f, PI / 2.0f);
+// IMU imu_motor(Wire1, PI / 2.0f, 0.0f, 0.0f);
 
 //IMU data
 imu_data imu_board_data, imu_motor_data;
@@ -66,20 +63,20 @@ void setup() {
 
   imu_board.begin();
   delay(100);
-  imu_motor.begin();
+  // imu_motor.begin();
   delay(100);
   imu_board.calibrateIMU();
   delay(200);
-  imu_motor.calibrateIMU();
+  // imu_motor.calibrateIMU();
   delay(200);
   Serial.println("MPU6050 Initialized");
 
   //Initialize intial state x_hat[] value for controller
   imu_board.update();
-  imu_motor.update();
+  // imu_motor.update();
 
   imu_board_data = imu_board.getIMUData();
-  imu_motor_data = imu_motor.getIMUData();
+  // imu_motor_data = imu_motor.getIMUData();
 
   MotorStatus status;
   if (leftMotor.getStatus(status)) {
@@ -104,10 +101,14 @@ void stopMotors() {
 void loop() {
   // Get measured values for estimation
   imu_board.update();
-  imu_motor.update();
+  // imu_motor.update();
 
   imu_board_data = imu_board.getIMUData();
-  imu_motor_data = imu_motor.getIMUData();
+  // imu_motor_data = imu_motor.getIMUData();
+
+  Serial.print(">");
+  imu_board.serialPlotter(imu_board_data);
+  Serial.println(); // Writes \r\n
 
   MotorStatus status;
   if (leftMotor.getStatus(status)) {
@@ -121,13 +122,13 @@ void loop() {
   x[3] = imu_board_data.ActualYgyro;
 
 
-  Serial.printf("x = %7.4f m,   dx = %6.3f m/s²,   theta = %6.2frad,   dtheta = %6.2frad/s\n", x[0], x[1], x[2], x[3]);
+  // Serial.printf("x = %7.4f m,   dx = %6.3f m/s²,   theta = %6.2frad,   dtheta = %6.2frad/s\n", x[0], x[1], x[2], x[3]);
   
   //Apply Control
-  float u = controller.updateLQG(x[0], x[1], x[2], x[3]);
+  // float u = controller.updateLQG(x[0], x[1], x[2], x[3]);
 
-  leftMotor.setTorque(-u);
-  rightMotor.setTorque(-u); 
+  // leftMotor.setTorque(-u);
+  // rightMotor.setTorque(-u); 
 
   if (Serial.available()) {
     char cmd = Serial.read();

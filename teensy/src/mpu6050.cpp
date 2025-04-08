@@ -1,17 +1,26 @@
 #include "mpu6050.hpp"
 
-IMU::IMU(TwoWire &wire,
-    char X_mappedFrom, char Y_mappedFrom, char Z_mappedFrom,
-    bool X_flipped, bool Y_flipped, bool Z_flipped)
+IMU::IMU(TwoWire &wire, float rollInitialize, float pitchInitialize, float yawInitialize)
 : _wire(&wire), mpu(wire)
 {
-axisMap[0] = X_mappedFrom;
-axisMap[1] = Y_mappedFrom;
-axisMap[2] = Z_mappedFrom;
+    cr = cos(rollInitialize);
+    sr = sin(rollInitialize);
+    cp = cos(pitchInitialize);
+    sp = sin(pitchInitialize);
+    cy = cos(yawInitialize);
+    sy = sin(yawInitialize);
 
-axisFlip[0] = X_flipped ? -1.0f : 1.0f;
-axisFlip[1] = Y_flipped ? -1.0f : 1.0f;
-axisFlip[2] = Z_flipped ? -1.0f : 1.0f;
+    rotationMatrixInitialize[0][0] = cy * cp;
+    rotationMatrixInitialize[0][1] = cy * sp * sr - sy * cr;
+    rotationMatrixInitialize[0][2] = cy * sp * cr + sy * sr;
+
+    rotationMatrixInitialize[1][0] = sy * cp;
+    rotationMatrixInitialize[1][1] = sy * sp * sr + cy * cr;
+    rotationMatrixInitialize[1][2] = sy * sp * cr - cy * sr;
+
+    rotationMatrixInitialize[2][0] = -sp;
+    rotationMatrixInitialize[2][1] = cp * sr;
+    rotationMatrixInitialize[2][2] = cp * cr;
 }
 
 
@@ -53,7 +62,7 @@ imu_data IMU::getIMUData() {
     float x_acc = LowPassFilterAccel(x_acc_raw, 0);
     float y_acc = LowPassFilterAccel(y_acc_raw, 1);
     float z_acc = LowPassFilterAccel(z_acc_raw, 2);
-
+ 
     // --- Change to Radian ---
     float x_angle_radian = radians(x_angle);
     float y_angle_radian = radians(y_angle);
@@ -62,27 +71,88 @@ imu_data IMU::getIMUData() {
     float x_gyro_radian = radians(x_gyro);
     float y_gyro_radian = radians(y_gyro);
     float z_gyro_radian = radians(z_gyro);
-    
 
-    // --- Apply mapping and flipping ---
-    data.ActualXangle = applyMapping(axisMap[0], x_angle_radian, y_angle_radian, z_angle_radian, axisFlip[0]);
-    data.ActualYangle = applyMapping(axisMap[1], x_angle_radian, y_angle_radian, z_angle_radian, axisFlip[1]);
-    data.ActualZangle = applyMapping(axisMap[2], x_angle_radian, y_angle_radian, z_angle_radian, axisFlip[2]);
+    // --- Apply rotation matrix ---
+    float sensorAngles[3] = {x_angle_radian, y_angle_radian, z_angle_radian};
+    float sensorGyros[3]  = {x_gyro_radian, y_gyro_radian, z_gyro_radian};
+    float sensorAccs[3]   = {x_acc, y_acc, z_acc};
 
-    data.ActualXgyro = applyMapping(axisMap[0], x_gyro_radian, y_gyro_radian, z_gyro_radian, axisFlip[0]);
-    data.ActualYgyro = applyMapping(axisMap[1], x_gyro_radian, y_gyro_radian, z_gyro_radian, axisFlip[1]);
-    data.ActualZgyro = applyMapping(axisMap[2], x_gyro_radian, y_gyro_radian, z_gyro_radian, axisFlip[2]);
+    // Transform angles
+    data.ActualXangle = 0;
+    data.ActualYangle = 0;
+    data.ActualZangle = 0;
+    for (int i = 0; i < 3; ++i) {
+        data.ActualXangle += rotationMatrixInitialize[0][i] * sensorAngles[i];
+        data.ActualYangle += rotationMatrixInitialize[1][i] * sensorAngles[i];
+        data.ActualZangle += rotationMatrixInitialize[2][i] * sensorAngles[i];
+    }
 
-    data.ActualXacc = applyMapping(axisMap[0], x_acc, y_acc, z_acc, axisFlip[0]);
-    data.ActualYacc = applyMapping(axisMap[1], x_acc, y_acc, z_acc, axisFlip[1]);
-    data.ActualZacc = applyMapping(axisMap[2], x_acc, y_acc, z_acc, axisFlip[2]);
+    // Transform gyros
+    data.ActualXgyro = 0;
+    data.ActualYgyro = 0;
+    data.ActualZgyro = 0;
+    for (int i = 0; i < 3; ++i) {
+        data.ActualXgyro += rotationMatrixInitialize[0][i] * sensorGyros[i];
+        data.ActualYgyro += rotationMatrixInitialize[1][i] * sensorGyros[i];
+        data.ActualZgyro += rotationMatrixInitialize[2][i] * sensorGyros[i];
+    }
+
+    // Transform accelerations
+    data.ActualXacc = 0;
+    data.ActualYacc = 0;
+    data.ActualZacc = 0;
+    for (int i = 0; i < 3; ++i) {
+        data.ActualXacc += rotationMatrixInitialize[0][i] * sensorAccs[i];
+        data.ActualYacc += rotationMatrixInitialize[1][i] * sensorAccs[i];
+        data.ActualZacc += rotationMatrixInitialize[2][i] * sensorAccs[i];
+    }
 
     return data;
 }
 
 
-void IMU::setFilterAlpha(float alpha) {
-    filterAlpha = constrain(alpha, 0.0f, 1.0f);
+
+void IMU::setLowPassFilterAlpha(float alpha) {
+    LowPassfilterAlpha = constrain(alpha, 0.0f, 1.0f);
+}
+
+
+void IMU::serialPlotter(imu_data data) {
+    Serial.print("ActualXangle:");
+    Serial.print(data.ActualXangle);
+    Serial.print(",");
+
+    Serial.print("ActualYangle:");
+    Serial.print(data.ActualYangle);
+    Serial.print(",");
+
+    Serial.print("ActualZangle:");
+    Serial.print(data.ActualZangle);
+    Serial.print(",");
+
+    Serial.print("ActualXgyro:");
+    Serial.print(data.ActualXgyro);
+    Serial.print(",");
+
+    Serial.print("ActualYgyro:");
+    Serial.print(data.ActualYgyro);
+    Serial.print(",");
+
+    Serial.print("ActualZgyro:");
+    Serial.print(data.ActualZgyro);
+    Serial.print(",");
+
+    Serial.print("ActualXacc:");
+    Serial.print(data.ActualXacc);
+    Serial.print(",");
+
+    Serial.print("ActualYacc:");
+    Serial.print(data.ActualYacc);
+    Serial.print(",");
+
+    Serial.print("ActualZacc:");
+    Serial.print(data.ActualZacc);
+    Serial.print(",");
 }
 
 // Angle (degrees):
@@ -115,14 +185,23 @@ float IMU::getGyroRateZDegPerSec() {
 // Acceleration (m/s²):
 
 float IMU::getAccelX() {
+    // Serial.print("ObjectXacc:");
+    // Serial.print(mpu.getAccX());
+    // Serial.print(",");
     return mpu.getAccX();  // X-axis acceleration
 }
 
 float IMU::getAccelY() {
+    // Serial.print("ObjectYacc:");
+    // Serial.print(mpu.getAccY());
+    // Serial.print(",");
     return mpu.getAccY();  // Y-axis acceleration (cart direction)
 }
 
 float IMU::getAccelZ() {
+    // Serial.print("ObjectZacc:");
+    // Serial.print(mpu.getAccZ());
+    // Serial.print(",");
     return mpu.getAccZ();  // Z-axis acceleration
 }
 
@@ -153,7 +232,7 @@ void IMU::calibrateIMU() {
     // Compute averages
     accelBiasX = accelSumX / samples;
     accelBiasY = accelSumY / samples;
-    accelBiasZ = (accelSumZ / samples) - 9.80665f;  // Subtract gravity for Z-axis
+    accelBiasZ = (accelSumZ / samples); //- 9.80665f;  // Subtract gravity for Z-axis
 
     gyroBiasX = gyroSumX / samples;
     gyroBiasY = gyroSumY / samples;
@@ -212,32 +291,26 @@ float IMU::getAccelZBiasCompensated() {
     return mpu.getAccZ() - accelBiasZ;
 }
 
-float IMU::applyMapping(char target, float x, float y, float z, float flip) {
-    float value = 0.0f;
-    switch (target) {
-        case 'X': value = x; break;
-        case 'Y': value = y; break;
-        case 'Z': value = z; break;
-        default: value = 0.0f; break;
-    }
-    return flip * value;
-}
-
 float IMU::applyLowPassFilter(float previous, float current, float alpha) {
     return alpha * previous + (1.0f - alpha) * current;
 }
 
 float IMU::LowPassFilterAccel(float rawValue, int axisIndex) {
-    prevAccel[axisIndex] = applyLowPassFilter(prevAccel[axisIndex], rawValue, filterAlpha);
+    prevAccel[axisIndex] = applyLowPassFilter(prevAccel[axisIndex], rawValue, LowPassfilterAlpha);
     return prevAccel[axisIndex];
 }
 
 float IMU::LowPassFilterGyro(float rawValue, int axisIndex) {
-    prevGyro[axisIndex] = applyLowPassFilter(prevGyro[axisIndex], rawValue, filterAlpha);
+    prevGyro[axisIndex] = applyLowPassFilter(prevGyro[axisIndex], rawValue, LowPassfilterAlpha);
     return prevGyro[axisIndex];
 }
 
 float IMU::LowPassFilterAngle(float rawValue, int axisIndex) {
-    prevAngle[axisIndex] = applyLowPassFilter(prevAngle[axisIndex], rawValue, filterAlpha);
+    prevAngle[axisIndex] = applyLowPassFilter(prevAngle[axisIndex], rawValue, LowPassfilterAlpha);
     return prevAngle[axisIndex];
 }    
+
+float IMU::applyComplementaryFilter(float previousAngle, float gyroRate, float accelAngle, float dt, float alpha) {
+    float gyroAngle = previousAngle + gyroRate * dt;
+    return alpha * gyroAngle + (1.0f - alpha) * accelAngle;
+}

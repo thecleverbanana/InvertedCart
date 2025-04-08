@@ -21,13 +21,13 @@ struct imu_data{
 
 class IMU {
 public:
-    IMU(TwoWire &wire, char X_mappedFrom, char Y_mappedFrom, char Z_mappedFrom,
-    bool X_flipped, bool Y_flipped,bool Z_flipped);
+    IMU(TwoWire &wire, float rollInitialize, float pitchInitialize, float yawInitialize);
     void begin();
     void update();
     void calibrateIMU();
     imu_data getIMUData();
-    void setFilterAlpha(float alpha);
+    void setLowPassFilterAlpha(float alpha);
+    void serialPlotter(imu_data data);
 
 private:
     TwoWire* _wire;
@@ -90,9 +90,25 @@ private:
     float getAccelZBiasCompensated();
 
     // Mapping helper function
-    float applyMapping(char target, float x, float y, float z, float flip);
+    float rollInitialize = 0.0f; //rotate around x, radian
+    float pitchInitialize = 0.0f; //rotate around x radian
+    float yawInitialize = 0.0f; //rotate around x radian
+
+    float cr = cos(rollInitialize);
+    float sr = sin(rollInitialize);
+    float cp = cos(pitchInitialize);
+    float sp = sin(pitchInitialize);
+    float cy = cos(yawInitialize);
+    float sy = sin(yawInitialize);
+
+    float rotationMatrixInitialize[3][3] = {
+    { cy * cp,  cy * sp * sr - sy * cr,  cy * sp * cr + sy * sr },
+    { sy * cp,  sy * sp * sr + cy * cr,  sy * sp * cr - cy * sr },
+    { -sp,      cp * sr,                cp * cr }
+    };
 
     // Filters
+        //Low Pass filter
     float applyLowPassFilter(float previous, float current, float alpha);
 
     float LowPassFilterAccel(float rawValue, int axisIndex);
@@ -103,7 +119,14 @@ private:
     float prevGyro[3] = {0.0f, 0.0f, 0.0f};
     float prevAngle[3] = {0.0f, 0.0f, 0.0f};
 
-    float filterAlpha = 0.9f; 
+    float LowPassfilterAlpha = 0.9f; 
+
+        //Complimentary filter
+        float estimatedAngle[3] = {0.0f, 0.0f, 0.0f};
+        
+        float applyComplementaryFilter(float previousAngle, float gyroRate, float accelAngle, float dt, float alpha);
+
+        float ComplimentaryfilterAlpha = 0.9f;
 };
 
 #endif
