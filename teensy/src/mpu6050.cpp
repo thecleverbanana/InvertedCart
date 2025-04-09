@@ -1,14 +1,19 @@
 #include "mpu6050.hpp"
 
-IMU::IMU(TwoWire &wire, float rollInitialize, float pitchInitialize, float yawInitialize)
-: _wire(&wire), mpu(wire)
+IMU::IMU(TwoWire &wire, float rollInitialize, float pitchInitialize, float yawInitialize, 
+    const char* name, float rx, float ry, float rz)
+: _wire(&wire), mpu(wire), objectName(name), r_x(rx), r_y(ry), r_z(rz)
 {
-    cr = cos(rollInitialize);
-    sr = sin(rollInitialize);
-    cp = cos(pitchInitialize);
-    sp = sin(pitchInitialize);
-    cy = cos(yawInitialize);
-    sy = sin(yawInitialize);
+    r[0] = r_x;
+    r[1] = r_y;
+    r[2] = r_z;
+    
+    float cr = cos(rollInitialize);
+    float sr = sin(rollInitialize);
+    float cp = cos(pitchInitialize);
+    float sp = sin(pitchInitialize);
+    float cy = cos(yawInitialize);
+    float sy = sin(yawInitialize);
 
     rotationMatrixInitialize[0][0] = cy * cp;
     rotationMatrixInitialize[0][1] = cy * sp * sr - sy * cr;
@@ -34,183 +39,12 @@ void IMU::update() {
     mpu.update();
 }
 
-imu_data IMU::getIMUData() {
-    imu_data data;
-
-    // --- Bias-compensated values ---
-    float x_angle_raw = getAngleXDegBiasCompensated();
-    float y_angle_raw = getAngleYDegBiasCompensated();
-    float z_angle_raw = getAngleZDegBiasCompensated(); 
-
-    float x_gyro_raw = getGyroRateXDegPerSecBiasCompensated();
-    float y_gyro_raw = getGyroRateYDegPerSecBiasCompensated(); 
-    float z_gyro_raw = getGyroRateZDegPerSecBiasCompensated();
-
-    float x_acc_raw = getAccelXBiasCompensated();
-    float y_acc_raw = getAccelYBiasCompensated();
-    float z_acc_raw = getAccelZBiasCompensated();
-
-    // --- Apply filtering ---
-    float x_angle = LowPassFilterAngle(x_angle_raw, 0);
-    float y_angle = LowPassFilterAngle(y_angle_raw, 1);
-    float z_angle = LowPassFilterAngle(z_angle_raw, 2);
-    
-    float x_gyro = LowPassFilterGyro(x_gyro_raw, 0);
-    float y_gyro = LowPassFilterGyro(y_gyro_raw, 1);
-    float z_gyro = LowPassFilterGyro(z_gyro_raw, 2);
-
-    float x_acc = LowPassFilterAccel(x_acc_raw, 0);
-    float y_acc = LowPassFilterAccel(y_acc_raw, 1);
-    float z_acc = LowPassFilterAccel(z_acc_raw, 2);
- 
-    // --- Change to Radian ---
-    float x_angle_radian = radians(x_angle);
-    float y_angle_radian = radians(y_angle);
-    float z_angle_radian = radians(z_angle);
-
-    float x_gyro_radian = radians(x_gyro);
-    float y_gyro_radian = radians(y_gyro);
-    float z_gyro_radian = radians(z_gyro);
-
-    // --- Apply rotation matrix ---
-    float sensorAngles[3] = {x_angle_radian, y_angle_radian, z_angle_radian};
-    float sensorGyros[3]  = {x_gyro_radian, y_gyro_radian, z_gyro_radian};
-    float sensorAccs[3]   = {x_acc, y_acc, z_acc};
-
-    // Transform angles
-    data.ActualXangle = 0;
-    data.ActualYangle = 0;
-    data.ActualZangle = 0;
-    for (int i = 0; i < 3; ++i) {
-        data.ActualXangle += rotationMatrixInitialize[0][i] * sensorAngles[i];
-        data.ActualYangle += rotationMatrixInitialize[1][i] * sensorAngles[i];
-        data.ActualZangle += rotationMatrixInitialize[2][i] * sensorAngles[i];
-    }
-
-    // Transform gyros
-    data.ActualXgyro = 0;
-    data.ActualYgyro = 0;
-    data.ActualZgyro = 0;
-    for (int i = 0; i < 3; ++i) {
-        data.ActualXgyro += rotationMatrixInitialize[0][i] * sensorGyros[i];
-        data.ActualYgyro += rotationMatrixInitialize[1][i] * sensorGyros[i];
-        data.ActualZgyro += rotationMatrixInitialize[2][i] * sensorGyros[i];
-    }
-
-    // Transform accelerations
-    data.ActualXacc = 0;
-    data.ActualYacc = 0;
-    data.ActualZacc = 0;
-    for (int i = 0; i < 3; ++i) {
-        data.ActualXacc += rotationMatrixInitialize[0][i] * sensorAccs[i];
-        data.ActualYacc += rotationMatrixInitialize[1][i] * sensorAccs[i];
-        data.ActualZacc += rotationMatrixInitialize[2][i] * sensorAccs[i];
-    }
-
-    return data;
-}
-
-
-
-void IMU::setLowPassFilterAlpha(float alpha) {
-    LowPassfilterAlpha = constrain(alpha, 0.0f, 1.0f);
-}
-
-
-void IMU::serialPlotter(imu_data data) {
-    Serial.print("ActualXangle:");
-    Serial.print(data.ActualXangle);
-    Serial.print(",");
-
-    Serial.print("ActualYangle:");
-    Serial.print(data.ActualYangle);
-    Serial.print(",");
-
-    Serial.print("ActualZangle:");
-    Serial.print(data.ActualZangle);
-    Serial.print(",");
-
-    Serial.print("ActualXgyro:");
-    Serial.print(data.ActualXgyro);
-    Serial.print(",");
-
-    Serial.print("ActualYgyro:");
-    Serial.print(data.ActualYgyro);
-    Serial.print(",");
-
-    Serial.print("ActualZgyro:");
-    Serial.print(data.ActualZgyro);
-    Serial.print(",");
-
-    Serial.print("ActualXacc:");
-    Serial.print(data.ActualXacc);
-    Serial.print(",");
-
-    Serial.print("ActualYacc:");
-    Serial.print(data.ActualYacc);
-    Serial.print(",");
-
-    Serial.print("ActualZacc:");
-    Serial.print(data.ActualZacc);
-    Serial.print(",");
-}
-
-// Angle (degrees):
-float IMU::getAngleXDeg() {
-    return mpu.getAngleX();  // X-axis angle (pitch)
-}
-
-float IMU::getAngleYDeg() {
-    return mpu.getAngleY();  // Y-axis angle (roll)
-}
-
-float IMU::getAngleZDeg() {
-    return mpu.getAngleZ();  // Z-axis angle (yaw)
-}
-
-// Gyro rate (degrees per second):
-
-float IMU::getGyroRateXDegPerSec() {
-    return mpu.getGyroX();  // X-axis gyro rate
-}
-
-float IMU::getGyroRateYDegPerSec() {
-    return mpu.getGyroY();  // Y-axis gyro rate
-}
-
-float IMU::getGyroRateZDegPerSec() {
-    return mpu.getGyroZ();  // Z-axis gyro rate
-}
-
-// Acceleration (m/s²):
-
-float IMU::getAccelX() {
-    // Serial.print("ObjectXacc:");
-    // Serial.print(mpu.getAccX());
-    // Serial.print(",");
-    return mpu.getAccX();  // X-axis acceleration
-}
-
-float IMU::getAccelY() {
-    // Serial.print("ObjectYacc:");
-    // Serial.print(mpu.getAccY());
-    // Serial.print(",");
-    return mpu.getAccY();  // Y-axis acceleration (cart direction)
-}
-
-float IMU::getAccelZ() {
-    // Serial.print("ObjectZacc:");
-    // Serial.print(mpu.getAccZ());
-    // Serial.print(",");
-    return mpu.getAccZ();  // Z-axis acceleration
-}
-
-
 void IMU::calibrateIMU() {
     const int samples = 200;
-    
-    float accelSumX = 0.0f, accelSumY = 0.0f, accelSumZ = 0.0f;
-    float gyroSumX = 0.0f, gyroSumY = 0.0f, gyroSumZ = 0.0f;
+
+    float accelSum[3] = {0.0f, 0.0f, 0.0f};
+    float gyroSum[3]  = {0.0f, 0.0f, 0.0f};
+    float angleSum[3] = {0.0f, 0.0f, 0.0f};
 
     Serial.println("\nCalibrating IMU... Please keep system still.");
     delay(300);
@@ -218,78 +52,176 @@ void IMU::calibrateIMU() {
     for (int i = 0; i < samples; ++i) {
         update();
 
-        accelSumX += getAccelX();
-        accelSumY += getAccelY();
-        accelSumZ += getAccelZ();
+        getRawData();
 
-        gyroSumX += getGyroRateXDegPerSec();
-        gyroSumY += getGyroRateYDegPerSec();
-        gyroSumZ += getGyroRateZDegPerSec();
+        accelSum[0] += rawData.Xacc;
+        accelSum[1] += rawData.Yacc;
+        accelSum[2] += rawData.Zacc;
+
+        gyroSum[0] += rawData.Xgyro;
+        gyroSum[1] += rawData.Ygyro;
+        gyroSum[2] += rawData.Zgyro;
+
+        angleSum[0] += rawData.Xangle;
+        angleSum[1] += rawData.Yangle;
+        angleSum[2] += rawData.Zangle;
 
         delay(5);
     }
 
-    // Compute averages
-    accelBiasX = accelSumX / samples;
-    accelBiasY = accelSumY / samples;
-    accelBiasZ = (accelSumZ / samples); //- 9.80665f;  // Subtract gravity for Z-axis
+    // --- store in bias struct ---
+    bias.Xacc = accelSum[0] / samples;
+    bias.Yacc = accelSum[1] / samples;
+    bias.Zacc = accelSum[2] / samples - 9.80665f; //subtract gravity
 
-    gyroBiasX = gyroSumX / samples;
-    gyroBiasY = gyroSumY / samples;
-    gyroBiasZ = gyroSumZ / samples;
+    bias.Xgyro = gyroSum[0] / samples;
+    bias.Ygyro = gyroSum[1] / samples;
+    bias.Zgyro = gyroSum[2] / samples;
 
-    phiOffset = getAngleXDeg();
-    rollOffset = getAngleYDeg();
-    yawOffset = getAngleZDeg();
+    bias.Xangle = angleSum[0] / samples;
+    bias.Yangle = angleSum[1] / samples;
+    bias.Zangle = angleSum[2] / samples;
 
-    // Report results
+    // --- serial output ---
     Serial.println("Calibration complete:");
     Serial.printf("Accel bias: X: %.5f m/s², Y: %.5f m/s², Z: %.5f m/s²\n", 
-                accelBiasX, accelBiasY, accelBiasZ);
+                  bias.Xacc, bias.Yacc, bias.Zacc);
     Serial.printf("Gyro bias: X: %.5f deg/s, Y: %.5f deg/s, Z: %.5f deg/s\n", 
-                gyroBiasX, gyroBiasY, gyroBiasZ);
-    Serial.printf("Initial angle offsets: Pitch (X): %.2f°, Roll (Y): %.2f°, Yaw (Z): %.2f°\n",
-                phiOffset, rollOffset, yawOffset);
+                  bias.Xgyro, bias.Ygyro, bias.Zgyro);
+    Serial.printf("Initial angle offsets: X: %.2f°, Y: %.2f°, Z: %.2f°\n",
+                  bias.Xangle, bias.Yangle, bias.Zangle);
 }
 
-// --- Angle (degrees), bias-compensated ---
-float IMU::getAngleXDegBiasCompensated() {
-    return mpu.getAngleX() - phiOffset;  // Pitch
+void IMU::getIMUData() {
+    getRawData();           // Step 1: Read sensor and apply rotation matrix
+    getCompensatedData();   // Step 2: Remove bias
+    getFilteredData();      // Step 3: Apply filtering
+    getRadianData();        // Step 4: Convert to radians
+    getActualAcceleration(); //step 5: Get linear correction data
 }
 
-float IMU::getAngleYDegBiasCompensated() {
-    return mpu.getAngleY() - rollOffset;  // Roll
+void IMU::setLowPassFilterAlpha(float alpha) {
+    LowPassfilterAlpha = constrain(alpha, 0.0f, 1.0f);
 }
 
-float IMU::getAngleZDegBiasCompensated() {
-    return mpu.getAngleZ() - yawOffset;  // Yaw
+void IMU::serialPlotter(IMU_DATA data, const char* objectName) {
+    Serial.print(">");
+
+    Serial.print("{"); Serial.print(objectName); Serial.print("}Xangle:");
+    Serial.print(data.Xangle); Serial.print(",");
+
+    Serial.print("{"); Serial.print(objectName); Serial.print("}Yangle:");
+    Serial.print(data.Yangle); Serial.print(",");
+
+    Serial.print("{"); Serial.print(objectName); Serial.print("}Zangle:");
+    Serial.print(data.Zangle); Serial.print(",");
+
+    Serial.print("{"); Serial.print(objectName); Serial.print("}Xgyro:");
+    Serial.print(data.Xgyro); Serial.print(",");
+
+    Serial.print("{"); Serial.print(objectName); Serial.print("}Ygyro:");
+    Serial.print(data.Ygyro); Serial.print(",");
+
+    Serial.print("{"); Serial.print(objectName); Serial.print("}Zgyro:");
+    Serial.print(data.Zgyro); Serial.print(",");
+
+    Serial.print("{"); Serial.print(objectName); Serial.print("}Xacc:");
+    Serial.print(data.Xacc); Serial.print(",");
+
+    Serial.print("{"); Serial.print(objectName); Serial.print("}Yacc:");
+    Serial.print(data.Yacc); Serial.print(",");
+
+    Serial.print("{"); Serial.print(objectName); Serial.print("}Zacc:");
+    Serial.print(data.Zacc);
+
+    Serial.println(); 
 }
 
-// --- Gyro rate (degrees per second), bias-compensated ---
-float IMU::getGyroRateXDegPerSecBiasCompensated() {
-    return mpu.getGyroX() - gyroBiasX;  // Pitch rate
+
+void IMU::getRawData() {
+    // 1. Raw data
+    float sensorAngles[3] = { mpu.getAngleX(), mpu.getAngleY(), mpu.getAngleZ() };
+    float sensorGyros[3]  = { mpu.getGyroX(), mpu.getGyroY(), mpu.getGyroZ() };
+    float sensorAccs[3]   = { mpu.getAccX(), mpu.getAccY(), mpu.getAccZ() };
+
+    // 2. Change Axis to World Axis
+    float worldAngles[3] = {0.0f, 0.0f, 0.0f};
+    float worldGyros[3]  = {0.0f, 0.0f, 0.0f};
+    float worldAccs[3]   = {0.0f, 0.0f, 0.0f};
+
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            worldAngles[i] += rotationMatrixInitialize[i][j] * sensorAngles[j];
+            worldGyros[i]  += rotationMatrixInitialize[i][j] * sensorGyros[j];
+            worldAccs[i]   += rotationMatrixInitialize[i][j] * sensorAccs[j];
+        }
+    }
+
+    // 3. write to struct
+    rawData.Xangle = worldAngles[0];
+    rawData.Yangle = worldAngles[1];
+    rawData.Zangle = worldAngles[2];
+
+    rawData.Xgyro = worldGyros[0];
+    rawData.Ygyro = worldGyros[1];
+    rawData.Zgyro = worldGyros[2];
+
+    rawData.Xacc = worldAccs[0];
+    rawData.Yacc = worldAccs[1];
+    rawData.Zacc = worldAccs[2];
 }
 
-float IMU::getGyroRateYDegPerSecBiasCompensated() {
-    return mpu.getGyroY() - gyroBiasY;  // Roll rate
+void IMU::getCompensatedData() {
+    // Acceleration compensated
+    compensatedData.Xacc = rawData.Xacc - bias.Xacc;
+    compensatedData.Yacc = rawData.Yacc - bias.Yacc;
+    compensatedData.Zacc = rawData.Zacc - bias.Zacc;
+
+    // Gyroscope compensated
+    compensatedData.Xgyro = rawData.Xgyro - bias.Xgyro;
+    compensatedData.Ygyro = rawData.Ygyro - bias.Ygyro;
+    compensatedData.Zgyro = rawData.Zgyro - bias.Zgyro;
+
+    // Angle compensated
+    compensatedData.Xangle = rawData.Xangle - bias.Xangle;
+    compensatedData.Yangle = rawData.Yangle - bias.Yangle;
+    compensatedData.Zangle = rawData.Zangle - bias.Zangle;
 }
 
-float IMU::getGyroRateZDegPerSecBiasCompensated() {
-    return mpu.getGyroZ() - gyroBiasZ;  // Yaw rate
+void IMU::getFilteredData() {
+    // --- Apply Low Pass Filter to Acceleration ---
+    filteredData.Xacc = LowPassFilterAccel(compensatedData.Xacc, 0);
+    filteredData.Yacc = LowPassFilterAccel(compensatedData.Yacc, 1);
+    filteredData.Zacc = LowPassFilterAccel(compensatedData.Zacc, 2);
+
+    // --- Apply Low Pass Filter to Gyroscope ---
+    filteredData.Xgyro = LowPassFilterGyro(compensatedData.Xgyro, 0);
+    filteredData.Ygyro = LowPassFilterGyro(compensatedData.Ygyro, 1);
+    filteredData.Zgyro = LowPassFilterGyro(compensatedData.Zgyro, 2);
+
+    // --- Apply Low Pass Filter to Angles ---
+    filteredData.Xangle = LowPassFilterAngle(compensatedData.Xangle, 0);
+    filteredData.Yangle = LowPassFilterAngle(compensatedData.Yangle, 1);
+    filteredData.Zangle = LowPassFilterAngle(compensatedData.Zangle, 2);
 }
 
-// --- Acceleration (m/s²), bias-compensated ---
-float IMU::getAccelXBiasCompensated() {
-    return mpu.getAccX() - accelBiasX;
+void IMU::getRadianData() {
+     // --- Acceleration ---
+     radianData.Xacc = filteredData.Xacc;
+     radianData.Yacc = filteredData.Yacc;
+     radianData.Zacc = filteredData.Zacc;
+ 
+     // --- Gyroscope: deg/s -> rad/s ---
+     radianData.Xgyro = radians(filteredData.Xgyro);
+     radianData.Ygyro = radians(filteredData.Ygyro);
+     radianData.Zgyro = radians(filteredData.Zgyro);
+ 
+     // --- Angle: deg -> rad ---
+     radianData.Xangle = radians(filteredData.Xangle);
+     radianData.Yangle = radians(filteredData.Yangle);
+     radianData.Zangle = radians(filteredData.Zangle);
 }
 
-float IMU::getAccelYBiasCompensated() {
-    return mpu.getAccY() - accelBiasY;
-}
-
-float IMU::getAccelZBiasCompensated() {
-    return mpu.getAccZ() - accelBiasZ;
-}
 
 float IMU::applyLowPassFilter(float previous, float current, float alpha) {
     return alpha * previous + (1.0f - alpha) * current;
@@ -314,3 +246,38 @@ float IMU::applyComplementaryFilter(float previousAngle, float gyroRate, float a
     float gyroAngle = previousAngle + gyroRate * dt;
     return alpha * gyroAngle + (1.0f - alpha) * accelAngle;
 }
+
+
+void IMU::getActualAcceleration() {    
+    // Get angular velocity (rad/s)
+    float omega[3] = { radianData.Xgyro, radianData.Ygyro, radianData.Zgyro };
+
+    // Step 1: omega × r
+    float omegaCrossR[3] = {
+        omega[1] * r[2] - omega[2] * r[1],
+        omega[2] * r[0] - omega[0] * r[2],
+        omega[0] * r[1] - omega[1] * r[0]
+    };
+
+    // Step 2: omega × (omega × r)
+    float centrifugal[3] = {
+        omega[1] * omegaCrossR[2] - omega[2] * omegaCrossR[1],
+        omega[2] * omegaCrossR[0] - omega[0] * omegaCrossR[2],
+        omega[0] * omegaCrossR[1] - omega[1] * omegaCrossR[0]
+    };
+
+    // Step 3: Subtract centrifugal from measured acceleration (radianData)
+    linearAccCorrectionData.Xacc = radianData.Xacc - centrifugal[0];
+    linearAccCorrectionData.Yacc = radianData.Yacc - centrifugal[1];
+    linearAccCorrectionData.Zacc = radianData.Zacc - centrifugal[2];
+
+    // Optional: Copy other useful data if you like
+    linearAccCorrectionData.Xgyro = radianData.Xgyro;
+    linearAccCorrectionData.Ygyro = radianData.Ygyro;
+    linearAccCorrectionData.Zgyro = radianData.Zgyro;
+
+    linearAccCorrectionData.Xangle = radianData.Xangle;
+    linearAccCorrectionData.Yangle = radianData.Yangle;
+    linearAccCorrectionData.Zangle = radianData.Zangle;
+}
+

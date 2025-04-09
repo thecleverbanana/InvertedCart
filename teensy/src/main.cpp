@@ -106,9 +106,7 @@ void loop() {
   imu_board_data = imu_board.getIMUData();
   // imu_motor_data = imu_motor.getIMUData();
 
-  Serial.print(">");
   imu_board.serialPlotter(imu_board_data);
-  Serial.println(); // Writes \r\n
 
   MotorStatus status;
   if (leftMotor.getStatus(status)) {

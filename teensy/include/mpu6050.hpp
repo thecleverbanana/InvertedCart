@@ -4,122 +4,72 @@
 #include <Wire.h>
 #include <MPU6050_tockn.h>
 
-struct imu_data{
-    float ActualXangle; // Real system X-axis angle
-    float ActualYangle; // Real system Y-axis angle
-    float ActualZangle; // Real system Z-axis angle
+struct IMU_DATA{
+    float Xangle; // X-axis angle
+    float Yangle; // Y-axis angle
+    float Zangle; // Z-axis angle
     
 
-    float ActualXgyro; // Real system X-axis gyro rate
-    float ActualYgyro; // Real system Y-axis gyro rate
-    float ActualZgyro; // Real system Z-axis gyro rate
+    float Xgyro; // X-axis gyro rate
+    float Ygyro; // Y-axis gyro rate
+    float Zgyro; // Z-axis gyro rate
 
-    float ActualXacc; // Real system X-axis acc rate
-    float ActualYacc; // Real system Y-axis acc rate
-    float ActualZacc; // Real system z-axis acc rate
+    float Xacc; // X-axis acc rate
+    float Yacc; // Y-axis acc rate
+    float Zacc; // Z-axis acc rate
 };
 
 class IMU {
 public:
-    IMU(TwoWire &wire, float rollInitialize, float pitchInitialize, float yawInitialize);
+    IMU(TwoWire &wire, float rollInitialize, float pitchInitialize, float yawInitialize,
+        const char* name, float rx, float ry, float rz);
     void begin();
     void update();
+
     void calibrateIMU();
-    imu_data getIMUData();
+    void getIMUData();
+
     void setLowPassFilterAlpha(float alpha);
-    void serialPlotter(imu_data data);
+    void serialPlotter(IMU_DATA data, const char* objectName);
 
 private:
     TwoWire* _wire;
     MPU6050 mpu;
+    const char* objectName;
 
-    // Axis mapping: user defines in constructor what axis X, Y, Z map to
-    char axisMap[3];  // 0: X, 1: Y, 2: Z -> stores 'X', 'Y', 'Z'
+    // --- Rotate IMU to real world axis ----
+    float rotationMatrixInitialize[3][3];
 
-    // Axis flipping: +1 or -1 to apply sign flip
-    float axisFlip[3];
+    // --- Get Raw data and Change to World Axis (degrees) ---
+    IMU_DATA rawData;
+    void getRawData();
 
-    // --- Accel biases ---
-    float accelBiasX = 0.0f;
-    float accelBiasY = 0.0f;
-    float accelBiasZ = 0.0f;
+    //Bias Data
+    IMU_DATA bias;
 
-    // --- Gyro biases ---
-    float gyroBiasX = 0.0f;
-    float gyroBiasY = 0.0f;
-    float gyroBiasZ = 0.0f;
+    // --- Get Compenstaed data (degrees) ---
+    IMU_DATA compensatedData;
+    void getCompensatedData();
 
-    // --- Angle zero offsets ---
-    float phiOffset = 0.0f;  // Pitch zero offset
-    float rollOffset = 0.0f; // Roll zero offset
-    float yawOffset = 0.0f;  // Yaw zero offset
+    IMU_DATA filteredData;
+    void getFilteredData();
 
-    // --- Pendulum parameter ---
-    float l = 0.133f;
-
-
-    // --- Angle (degrees) ---
-    float getAngleXDeg();  // Pitch angle 
-    float getAngleYDeg();  // Roll angle   
-    float getAngleZDeg();  // Yaw angle
-
-    // --- Gyroscope rate (deg/s) ---
-    float getGyroRateXDegPerSec();  // Pitch rate
-    float getGyroRateYDegPerSec();  // Roll rate
-    float getGyroRateZDegPerSec();  // Yaw rate
-
-    // --- Acceleration (m/s^2) ---
-    float getAccelX();
-    float getAccelY();  // Cart direction
-    float getAccelZ();
-
-
-    // --- Angle (degrees), bias-compensated ---
-    float getAngleXDegBiasCompensated();  // Pitch angle
-    float getAngleYDegBiasCompensated();  // Roll angle
-    float getAngleZDegBiasCompensated();  // Yaw angle
-
-    // --- Gyroscope rate (deg/s), bias-compensated ---
-    float getGyroRateXDegPerSecBiasCompensated();  // Pitch rate
-    float getGyroRateYDegPerSecBiasCompensated();  // Roll rate
-    float getGyroRateZDegPerSecBiasCompensated();  // Yaw rate
-
-    // --- Acceleration (m/s^2), bias-compensated ---
-    float getAccelXBiasCompensated();
-    float getAccelYBiasCompensated();  // Cart direction
-    float getAccelZBiasCompensated();
-
-    // Mapping helper function
-    float rollInitialize = 0.0f; //rotate around x, radian
-    float pitchInitialize = 0.0f; //rotate around x radian
-    float yawInitialize = 0.0f; //rotate around x radian
-
-    float cr = cos(rollInitialize);
-    float sr = sin(rollInitialize);
-    float cp = cos(pitchInitialize);
-    float sp = sin(pitchInitialize);
-    float cy = cos(yawInitialize);
-    float sy = sin(yawInitialize);
-
-    float rotationMatrixInitialize[3][3] = {
-    { cy * cp,  cy * sp * sr - sy * cr,  cy * sp * cr + sy * sr },
-    { sy * cp,  sy * sp * sr + cy * cr,  sy * sp * cr - cy * sr },
-    { -sp,      cp * sr,                cp * cr }
-    };
+    IMU_DATA radianData;
+    void getRadianData();
 
     // Filters
         //Low Pass filter
-    float applyLowPassFilter(float previous, float current, float alpha);
+        float applyLowPassFilter(float previous, float current, float alpha);
 
-    float LowPassFilterAccel(float rawValue, int axisIndex);
-    float LowPassFilterGyro(float rawValue, int axisIndex);
-    float LowPassFilterAngle(float rawValue, int axisIndex);
+        float LowPassFilterAccel(float rawValue, int axisIndex);
+        float LowPassFilterGyro(float rawValue, int axisIndex);
+        float LowPassFilterAngle(float rawValue, int axisIndex);
 
-    float prevAccel[3] = {0.0f, 0.0f, 0.0f};
-    float prevGyro[3] = {0.0f, 0.0f, 0.0f};
-    float prevAngle[3] = {0.0f, 0.0f, 0.0f};
+        float prevAccel[3] = {0.0f, 0.0f, 0.0f};
+        float prevGyro[3] = {0.0f, 0.0f, 0.0f};
+        float prevAngle[3] = {0.0f, 0.0f, 0.0f};
 
-    float LowPassfilterAlpha = 0.9f; 
+        float LowPassfilterAlpha = 0.9f; 
 
         //Complimentary filter
         float estimatedAngle[3] = {0.0f, 0.0f, 0.0f};
@@ -127,6 +77,18 @@ private:
         float applyComplementaryFilter(float previousAngle, float gyroRate, float accelAngle, float dt, float alpha);
 
         float ComplimentaryfilterAlpha = 0.9f;
+
+    // ---- Rotatory center for each axis ---
+    IMU_DATA linearAccCorrectionData;
+    float r_x = 0.0f;
+    float r_y = 0.0f;
+    float r_z = 0.0f;
+
+    float r[3] = {r_x, r_y, r_z};
+    
+
+    void getActualAcceleration();
+ 
 };
 
 #endif
