@@ -27,10 +27,10 @@ public:
     void update();
 
     void calibrateIMU();
-    void getIMUData();
+    IMU_DATA getIMUData();
 
     void setLowPassFilterAlpha(float alpha);
-    void serialPlotter(IMU_DATA data, const char* objectName);
+    void serialPlotter(IMU_DATA data);
 
 private:
     TwoWire* _wire;

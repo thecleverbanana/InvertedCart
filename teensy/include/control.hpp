@@ -6,7 +6,6 @@
 class Controller {
 public:
     Controller(Motor* left, Motor* right, float dt);
-    void nonlinearDynamics(const float x_hat[], float tau, float dx_hat[]);
     float updateLQR(float x_meas, float dx_meas, float theta_meas, float dtheta_meas); //LQR Control (With feedback) and return u
     float updateLQG(float x_meas, float dx_meas, float theta_meas, float dtheta_meas);  // LQG return u
     void setDt(float new_dt);
@@ -72,11 +71,12 @@ private:
 
     // LQG observer gain (L)
     float L[4][4] = {
-        { 3.21614944f, 0.149442707f, -0.00000537035564f, -0.0276865438f },
-        { 5.37993746f, 0.567016431f, -0.0000699907853f, -0.328123735f },
-        { -0.105258971f, -0.0381060942f, 0.000697209258f, 2.86961089f },
-        { -0.4429847f, -0.145832771f, 0.0023425395f, 14.3134533f }
+        { 400.011939f,   0.142867174f,   -0.000207450415f,  -0.00148661174f },
+        { 5.14321827f,   66.6727694f,    -0.105232188f,    -0.732221593f },
+        { -0.0829801661f, -1.16924653f,   12.9921301f,     77.0134029f },
+        { -0.0237857878f, -0.325431819f,  3.08053612f,    120.796194f }
     };
+    
             
     //Control frequency;
     float dt = 0.005;

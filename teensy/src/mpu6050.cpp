@@ -92,51 +92,52 @@ void IMU::calibrateIMU() {
                   bias.Xangle, bias.Yangle, bias.Zangle);
 }
 
-void IMU::getIMUData() {
+IMU_DATA IMU::getIMUData() {
     getRawData();           // Step 1: Read sensor and apply rotation matrix
     getCompensatedData();   // Step 2: Remove bias
     getFilteredData();      // Step 3: Apply filtering
     getRadianData();        // Step 4: Convert to radians
     getActualAcceleration(); //step 5: Get linear correction data
+
+    return linearAccCorrectionData;
 }
 
 void IMU::setLowPassFilterAlpha(float alpha) {
     LowPassfilterAlpha = constrain(alpha, 0.0f, 1.0f);
 }
 
-void IMU::serialPlotter(IMU_DATA data, const char* objectName) {
+void IMU::serialPlotter(IMU_DATA data) {
     Serial.print(">");
 
-    Serial.print("{"); Serial.print(objectName); Serial.print("}Xangle:");
+    Serial.print(objectName); Serial.print("Xangle:");
     Serial.print(data.Xangle); Serial.print(",");
 
-    Serial.print("{"); Serial.print(objectName); Serial.print("}Yangle:");
+    Serial.print(objectName); Serial.print("Yangle:");
     Serial.print(data.Yangle); Serial.print(",");
 
-    Serial.print("{"); Serial.print(objectName); Serial.print("}Zangle:");
+    Serial.print(objectName); Serial.print("Zangle:");
     Serial.print(data.Zangle); Serial.print(",");
 
-    Serial.print("{"); Serial.print(objectName); Serial.print("}Xgyro:");
+    Serial.print(objectName); Serial.print("Xgyro:");
     Serial.print(data.Xgyro); Serial.print(",");
 
-    Serial.print("{"); Serial.print(objectName); Serial.print("}Ygyro:");
+    Serial.print(objectName); Serial.print("Ygyro:");
     Serial.print(data.Ygyro); Serial.print(",");
 
-    Serial.print("{"); Serial.print(objectName); Serial.print("}Zgyro:");
+    Serial.print(objectName); Serial.print("Zgyro:");
     Serial.print(data.Zgyro); Serial.print(",");
 
-    Serial.print("{"); Serial.print(objectName); Serial.print("}Xacc:");
+    Serial.print(objectName); Serial.print("Xacc:");
     Serial.print(data.Xacc); Serial.print(",");
 
-    Serial.print("{"); Serial.print(objectName); Serial.print("}Yacc:");
+    Serial.print(objectName); Serial.print("Yacc:");
     Serial.print(data.Yacc); Serial.print(",");
 
-    Serial.print("{"); Serial.print(objectName); Serial.print("}Zacc:");
+    Serial.print(objectName); Serial.print("Zacc:");
     Serial.print(data.Zacc);
 
-    Serial.println(); 
+    Serial.println();
 }
-
 
 void IMU::getRawData() {
     // 1. Raw data
