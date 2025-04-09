@@ -7,13 +7,13 @@ Motor::Motor(FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16>* canBus, uint8_t id, int8
 }
 
 float Motor::initialization() {
-    MotorStatus status;
-    if (getStatus(status)) {
-        Serial.printf("Motor %d initialized, current angle = %.2f°\n", motorID, status.angle_deg);
-        return status.angle_deg;
+    if (readMultiTurnAngle()) { 
+        InitialDegree = CurrentDegree;  
+        Serial.printf("Motor %d initialized, initial angle set to 0. Current degree: %.2f°\n", motorID, CurrentDegree);
+        return InitialDegree; 
     } else {
         Serial.printf("Motor %d failed to respond during initialization\n", motorID);
-        return 0.0f;
+        return InitialDegree;
     }
 }
 
@@ -83,64 +83,6 @@ void Motor::stop() {
     Serial.printf("Motor %d STOP command sent (0x81)\n", motorID);
 }
 
-bool Motor::getStatus(MotorStatus& status) {
-    bool ok1 = false, ok2 = false;
-
-    // 0x9A - Status 1
-    {
-        CAN_message_t msg;
-        msg.id = 0x140 + motorID;
-        msg.len = 8;
-        msg.buf[0] = 0x9A;
-        for (int i = 1; i < 8; i++) msg.buf[i] = 0;
-
-        can->write(msg);
-
-        CAN_message_t rx;
-        unsigned long start = millis();
-        while (millis() - start < 20) {
-            if (can->read(rx) && rx.id == (0x240 + motorID) && rx.buf[0] == 0x9A) {
-                status.temperature = static_cast<int8_t>(rx.buf[1]);
-                uint16_t voltRaw = rx.buf[3] | (rx.buf[4] << 8);
-                status.voltage = voltRaw * 0.1f;
-                status.errorFlags = rx.buf[5] | (rx.buf[6] << 8);
-                ok1 = true;
-                break;
-            }
-        }
-    }
-
-    // Status 2
-    {
-        CAN_message_t msg;
-        msg.id = 0x140 + motorID;
-        msg.len = 8;
-        msg.buf[0] = 0x9C;
-        for (int i = 1; i < 8; i++) msg.buf[i] = 0;
-
-        can->write(msg);
-
-        CAN_message_t rx;
-        unsigned long start = millis();
-        while (millis() - start < 20) {
-            if (can->read(rx) && rx.id == (0x240 + motorID) && rx.buf[0] == 0x9C) {
-                int16_t iqRaw = rx.buf[2] | (rx.buf[3] << 8);
-                status.iq = iqRaw * 0.01f;
-
-                int16_t speedRaw = rx.buf[4] | (rx.buf[5] << 8);
-                status.speed_dps = static_cast<float>(speedRaw);
-
-                status.angle_deg = rx.buf[6] | (rx.buf[7] << 8);
-
-                ok2 = true;
-                break;
-            }
-        }
-    }
-
-    return ok1 && ok2; 
-}
-
 void Motor::clearMultiTurn() {
     CAN_message_t msg;
     msg.id = 0x140 + motorID;
@@ -163,7 +105,7 @@ void Motor::enableMultiTurnSave() {
 
     msg.buf[0] = 0x20; // Function control command
     msg.buf[1] = 0x04; // Save multi-turn on power off
-    msg.buf[2] = 0x01; // Value: 1 (enable)
+    msg.buf[2] = 0x00; // Value: 1 (enable) // Value “0” means single lap mode
     msg.buf[3] = 0x00; msg.buf[4] = 0x00;
     msg.buf[5] = 0x00; msg.buf[6] = 0x00; msg.buf[7] = 0x00;
 
@@ -182,22 +124,36 @@ void Motor::softRestart() {
     Serial.println("Sent motor soft restart command.");
 }
 
-bool Motor::verifyClearedZero() {
-    MotorStatus status;
-    if (getStatus(status)) {
-        float angle = status.angle_deg;
-        if (abs(angle) < 1.0f) {
-            Serial.println("Motor angle verified ~0°, clear successful.");
+bool Motor::readMultiTurnAngle() {
+    CAN_message_t msg;
+    msg.id = 0x140 + motorID;
+    msg.len = 8;
+    msg.buf[0] = 0x92;  // Command byte
+    for (int i = 1; i < 8; i++) msg.buf[i] = 0;
+
+    can->write(msg);
+
+    CAN_message_t rx;
+    unsigned long start = millis();
+    while (millis() - start < 20) {
+        if (can->read(rx) && rx.id == (0x240 + motorID) && rx.buf[0] == 0x92) {
+            int32_t rawAngle = rx.buf[4] | (rx.buf[5] << 8) | (rx.buf[6] << 16) | (rx.buf[7] << 24);
+            CurrentDegree = static_cast<float>(rawAngle) * 0.01f;  // ⚠️ 0.01°/LSB
             return true;
-        } else {
-            Serial.printf("Motor angle not zero: %.2f°, clear may have failed.\n", angle);
-            return false;
         }
-    } else {
-        Serial.println("Failed to read motor status for verification.");
-        return false;
     }
+
+    return false;
 }
+
+float Motor::getCurrentDeltaAngle(){
+    readMultiTurnAngle();
+
+    return CurrentDegree - InitialDegree;
+};
+
+
+
 
 
 

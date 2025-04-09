@@ -4,13 +4,15 @@
 #include "mpu6050.hpp" 
 #include "utils.hpp"
 
+//frequency
+float dt = 0.01f; // s
 // Global Objects
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can1;
 Motor leftMotor(&can1, 1, 1);
 Motor rightMotor(&can1, 2, -1);
-Controller controller(&leftMotor, &rightMotor, 0.005); 
+Controller controller(&leftMotor, &rightMotor, dt); 
 IMU imu_board(Wire2, PI, 0.0f, PI/2.0f, "Board_IMU", 0.02, 0.12, 0.2);
-IMU imu_motor(Wire1, PI/2.0f, 0.0f, 0.0f, "Motor_IMU", 0.02, 0.001, 0.2);
+IMU imu_motor(Wire1, PI/2.0f, 0.0f, 0.0f, "Motor_IMU", 0.02, 0.015, 0.2);
 // IMU imu_motor(Wire1, PI / 2.0f, 0.0f, 0.0f);
 
 
@@ -35,17 +37,17 @@ void setup() {
   can1.setBaudRate(1000000);
 
   // initialize the motor to get the intial angle
-  leftInitialAngle = leftMotor.initialization();
-  rightInitialAngle = rightMotor.initialization();
-
-  //clear multiturn and enable the save
   leftMotor.clearMultiTurn();
   delay(100);
-  leftMotor.enableMultiTurnSave();
-  delay(100);
   leftMotor.softRestart();
+  delay(1000);
+  rightMotor.clearMultiTurn();
   delay(100);
-  leftMotor.verifyClearedZero();
+  rightMotor.softRestart();
+  delay(1000);
+
+  leftInitialAngle = leftMotor.initialization();
+  rightInitialAngle = rightMotor.initialization();
 
   // set the initial torque
   leftMotor.setTorque(0.0f);
@@ -74,24 +76,14 @@ void setup() {
   imu_board_data = imu_board.getIMUData();
   imu_motor_data = imu_motor.getIMUData();
 
-  MotorStatus status;
-  if (leftMotor.getStatus(status)) {
-      float deltaAngle = status.angle_deg - leftInitialAngle;  // deg
-      x_hat[0] = wheelRadius * radians(deltaAngle);       //add negative to align with the direction     
-  }
 
+  //Initialize x_hat for LQG
+  x_hat[0] = -radians(leftMotor.getCurrentDeltaAngle())*wheelRadius;
   x_hat[1] = imu_motor_data.Xacc;
-  // x_hat[1] = imu_board_data.ActualXacc;
   x_hat[2] = imu_motor_data.Yangle;
   x_hat[3] = imu_board_data.Ygyro;
   
   controller.initializeState(x_hat);
-}
-
-void stopMotors() {
-  leftMotor.setTorque(0.0f);
-  rightMotor.setTorque(0.0f);
-  Serial.println("Motors stopped.");
 }
 
 void loop() {
@@ -105,14 +97,9 @@ void loop() {
   // imu_board.serialPlotter(imu_board_data);
   // imu_motor.serialPlotter(imu_motor_data);
 
-  MotorStatus status;
-  if (leftMotor.getStatus(status)) {
-      float deltaAngle = status.angle_deg - leftInitialAngle;  // deg
-      x[0] = -wheelRadius * radians(deltaAngle);       //add negative to align with the direction     
-  }
-
+  x[0] = -radians(leftMotor.getCurrentDeltaAngle())*wheelRadius;
+  x[0] = fusedPositionEstimate(x[0], x[1], dt);
   x[1] = imu_motor_data.Xacc;
-  // x[1] = imu_board_data.ActualXacc;
   x[2] = imu_motor_data.Yangle;
   x[3] = imu_board_data.Ygyro;
 
@@ -122,18 +109,19 @@ void loop() {
   Serial.printf("theta: %7.4f m", x[2]);Serial.printf(",");
   Serial.printf("dtheta: %6.3f m", x[3]);Serial.printf(",");
   Serial.println();
-  
+
   //Apply Control
   // float u = controller.updateLQR(x[0], x[1], x[2], x[3]);
   float u = controller.updateLQG(x[0], x[1], x[2], x[3]);
 
-  // leftMotor.setTorque(-u);
-  // rightMotor.setTorque(-u); 
+  leftMotor.setTorque(u);
+  rightMotor.setTorque(u); 
 
   if (Serial.available()) {
     char cmd = Serial.read();
     if (cmd == 's') { 
-      stopMotors();
+      leftMotor.stop();
+      rightMotor.stop();
       while (1);
     }
   }
@@ -144,5 +132,5 @@ void loop() {
   // float dt_dynamic = (now - last_time) / 1000.0f;
   // last_time = now;
   // controller.setDt(dt_dynamic);
-  delay(5);
+  delay(dt*1000); //ms
 }

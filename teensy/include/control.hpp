@@ -10,6 +10,7 @@ public:
     float updateLQG(float x_meas, float dx_meas, float theta_meas, float dtheta_meas);  // LQG return u
     void setDt(float new_dt);
     void initializeState(const float x_hat_init[4]);
+    float applySmoothBoost(float u);
        
 private:
     Motor* motorLeft;
@@ -63,29 +64,28 @@ private:
 
     // LQR gain(K)
     float K[4] = {
-        0.4472136f,
-        1.04725721f,
-        3.20271011f,
-        1.150277f
+        0.31622777f,
+        0.850273f,
+        3.15043909f,
+        1.53313583f
     };
 
     // LQG observer gain (L)
     float L[4][4] = {
-        { 400.011939f,   0.142867174f,   -0.000207450415f,  -0.00148661174f },
-        { 5.14321827f,   66.6727694f,    -0.105232188f,    -0.732221593f },
-        { -0.0829801661f, -1.16924653f,   12.9921301f,     77.0134029f },
-        { -0.0237857878f, -0.325431819f,  3.08053612f,    120.796194f }
+        { 40.1399430f, 0.124587778f, -0.000167889867f, -0.0458903804f },
+        { 5.98021335f, 5.71268719f, -0.0137972870f, -3.66294922f },
+        { -0.0329064140f, -0.0563389220f, 0.619861936f, 140.747489f },
+        { -0.00734246086f, -0.0122098307f, 0.114895909f, 169.733597f }
     };
     
-            
     //Control frequency;
     float dt = 0.005;
 
     //Global Variable
     float x_hat[4] = {0.0f, 0.0f, 0.0f, 0.0f};  
 
-    const float staticFrictionThreshold = 0.15f;
-    const float staticFrictionBoost = 0.05f;
+    const float deadzone_threshold = 0.2f;
+    const float max_boost = 0.05f;
     const float TORQUE_LIMIT = 1.0f;
 };
 

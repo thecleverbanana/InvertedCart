@@ -72,6 +72,8 @@ float Controller::updateLQG(float x_meas, float dx_meas, float theta_meas, float
         u -= K[i]*x_hat[i]; 
     }
 
+    u = applySmoothBoost(u);    //apply boost
+
     return u;
 }
 
@@ -89,6 +91,17 @@ void Controller::initializeState(const float x_hat_init[4]) {
     Serial.printf("dx: %.4f, ", x_hat[1]);
     Serial.printf("theta: %.4f, ", x_hat[2]);
     Serial.printf("dtheta: %.4f\n", x_hat[3]);
+}
+
+float Controller::applySmoothBoost(float u) {
+    if (u > 0 && u < deadzone_threshold) {
+        float scale = u / deadzone_threshold;  // 0 到 1
+        return u + (1.0f - scale) * max_boost;
+    } else if (u < 0 && u > -deadzone_threshold) {
+        float scale = -u / deadzone_threshold;  // 0 到 1
+        return u - (1.0f - scale) * max_boost;
+    }
+    return u;
 }
 
     
