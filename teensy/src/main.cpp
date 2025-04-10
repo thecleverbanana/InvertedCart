@@ -114,8 +114,8 @@ void loop() {
   // float u = controller.updateLQR(x[0], x[1], x[2], x[3]);
   float u = controller.updateLQG(x[0], x[1], x[2], x[3]);
 
-  leftMotor.setTorque(u);
-  rightMotor.setTorque(u); 
+  leftMotor.setTorque(u/2);
+  rightMotor.setTorque(u/2); 
 
   if (Serial.available()) {
     char cmd = Serial.read();
