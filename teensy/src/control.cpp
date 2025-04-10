@@ -77,6 +77,48 @@ float Controller::updateLQG(float x_meas, float dx_meas, float theta_meas, float
     return u;
 }
 
+float Controller::updateLQGNonLinear(float x_meas, float dx_meas, float theta_meas, float dtheta_meas) {
+    float y[4] = {x_meas, dx_meas, theta_meas, dtheta_meas};
+    // compute u, u = -k_r * x_hat
+    float u = 0.0f;
+
+    for(int i=0; i<4; i++){
+        u -= K[i]*x_hat[i];
+    }
+
+
+    // compute dx_hat, dx_hat = [dx, ddx, dtheta, ddtheta]
+    // use linearized system here
+    float dx_hat[4];
+    dx_hat[0] = x_hat[1];
+    dx_hat[1] = xdd_solution(y[0], y[1], y[2], y[3], u);
+    dx_hat[2] = x_hat[3];
+    dx_hat[3] = thetadd_solution(y[0], y[1], y[2], y[3], u);
+
+    // compute x_hat+1, x_hat+1 = x_hat+dx_hat*dt
+     for(int i=0; i<4; i++){
+        x_hat[i] = x_hat[i]+dt*dx_hat[i];
+     }
+
+    // Apply LQR Full State
+    for(int i=0; i<4; i++){
+        u -= K[i]*x_hat[i]; 
+    }
+
+    u = applySmoothBoost(u);    //apply boost
+
+    // --- Debug print ---
+    Serial.print(">");
+    Serial.printf("x_hat: %7.4f m", x_hat[0]); Serial.printf(",");
+    Serial.printf("dx_hat: %6.3f m/s", x_hat[1]);Serial.printf(",");
+    Serial.printf("theta_hat: %7.4f rad", x_hat[2]);Serial.printf(",");
+    Serial.printf("dtheta_hat: %6.3f rad/s", x_hat[3]); Serial.printf(",");
+    Serial.printf("tau: %6.3f Nm", u);
+    Serial.println();
+
+    return u;
+}
+
 void Controller:: setDt(float new_dt){
     dt = new_dt;
 }
@@ -95,10 +137,10 @@ void Controller::initializeState(const float x_hat_init[4]) {
 
 float Controller::applySmoothBoost(float u) {
     if (u > 0 && u < deadzone_threshold) {
-        float scale = u / deadzone_threshold;  // 0 到 1
+        float scale = u / deadzone_threshold; 
         return u + (1.0f - scale) * max_boost;
     } else if (u < 0 && u > -deadzone_threshold) {
-        float scale = -u / deadzone_threshold;  // 0 到 1
+        float scale = -u / deadzone_threshold; 
         return u - (1.0f - scale) * max_boost;
     }
     return u;

@@ -8,6 +8,7 @@ public:
     Controller(Motor* left, Motor* right, float dt);
     float updateLQR(float x_meas, float dx_meas, float theta_meas, float dtheta_meas); //LQR Control (With feedback) and return u
     float updateLQG(float x_meas, float dx_meas, float theta_meas, float dtheta_meas);  // LQG return u
+    float updateLQGNonLinear(float x_meas, float dx_meas, float theta_meas, float dtheta_meas);  // LQG return u
     void setDt(float new_dt);
     void initializeState(const float x_hat_init[4]);
     float applySmoothBoost(float u);
