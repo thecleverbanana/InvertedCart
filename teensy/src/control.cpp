@@ -91,9 +91,23 @@ float Controller::updateLQGNonLinear(float x_meas, float dx_meas, float theta_me
     // use linearized system here
     float dx_hat[4];
     dx_hat[0] = x_hat[1];
-    dx_hat[1] = xdd_solution(y[0], y[1], y[2], y[3], u);
+    dx_hat[1] = xdd_solution(x_hat[0], x_hat[1], x_hat[2], x_hat[3], u);
     dx_hat[2] = x_hat[3];
-    dx_hat[3] = thetadd_solution(y[0], y[1], y[2], y[3], u);
+    dx_hat[3] = thetadd_solution(x_hat[0], x_hat[1], x_hat[2], x_hat[3], u);
+
+    // Compute measurement error
+    float y_hat[4] = {x_hat[0], x_hat[1], x_hat[2], x_hat[3]}; // y_hat = C * x_hat
+    float y_error[4];
+    for (int i = 0; i < 4; i++) {
+        y_error[i] = y[i] - y_hat[i];
+    }
+
+    // Observer correction term: dx_hat += L * (y - y_hat)
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            dx_hat[i] += L[i][j] * y_error[j];
+        }
+    }
 
     // compute x_hat+1, x_hat+1 = x_hat+dx_hat*dt
      for(int i=0; i<4; i++){
