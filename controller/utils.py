@@ -1,3 +1,9 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import solve_ivp
+from matplotlib.animation import FuncAnimation
+from IPython.display import HTML
+
 def animate_inverted_pendulum(x_pos, theta, time, Len=0.1, r=0.06, margin=0.2, interval=30):
     fig, ax = plt.subplots(figsize=(4, 3)) 
     ax.set_aspect('equal')
@@ -59,14 +65,7 @@ def thetadd_solution_numerical(pos, vel, theta, dtheta, tau):
 
     return term1 + term2 + term3 + term4
 
-
-from scipy.integrate import solve_ivp
-import numpy as np
-
-def lqg_simulation_linear_continuous(x0, sys_c, K, L, t_span, t_eval,
-                                     measurement_noise_std=0.0,
-                                     impulse_time=None,
-                                     impulse_magnitude=1.0):
+def lqg_simulation_linear_continuous(x0, sys_c, K, L, t_span, t_eval):
     """
     Simulate continuous-time LQG closed-loop system
     - Measurement noise: optional
@@ -100,35 +99,37 @@ def lqg_simulation_linear_continuous(x0, sys_c, K, L, t_span, t_eval,
         x_true = z[:4]
         x_hat = z[4:]
 
-        # Measurement with noise
+        # === Disturbance and Impulse (optional) ===
+        disturbance = 0.0
+        # impulse = 0.0
+        # if impulse_time is not None:
+        #     epsilon = 1e-3
+        #     if abs(t - impulse_time) < epsilon:
+        #         impulse = impulse_magnitude / epsilon
+        # total_disturbance = disturbance + impulse
+
+        # === Measurement (optionally with noise) ===
+        x_std_d = 0.01      # encoder error in meters
+        dx_std_d = 0.01       # IMU-integrated linear velocity (m/s)
+        theta_std_d = 0.1    # integrated angle error (rad)
+        dtheta_std_d = 0.1  # IMU gyro noise (rad/s)
+        measurement_noise_std = np.array([x_std_d, dx_std_d, theta_std_d, dtheta_std_d])
         measurement_noise = measurement_noise_std * np.random.randn(C.shape[0])
         y_meas = C @ x_true + measurement_noise
 
-        # Control law
-        u = -K @ x_hat
+        # === Control law (use estimated state) ===
+        u = float(-K @ x_hat)  # safer as scalar
 
-        # === Hardcoded disturbance ===
-        disturbance = (
-            np.exp(-((t - 5.0) / 0.3) ** 2) * 0.5
-            + np.exp(-((t - 8.0) / 0.2) ** 2) * (-0.15)
-        )
-
-        # Impulse input
-        impulse = 0.0
-        if impulse_time is not None:
-            epsilon = 1e-3
-            if abs(t - impulse_time) < epsilon:
-                impulse = impulse_magnitude / epsilon
-
-        # Total input
-        total_input = u + disturbance + impulse
-
-        tau_storage.append(total_input.item())
-
-        # Dynamics
-        dx_true = A @ x_true + B.flatten() * total_input
+        # === Estimator dynamics ===
         dx_hat = A @ x_hat + B.flatten() * u + L @ (y_meas - C @ x_hat)
 
+        # === True system dynamics (apply control to real system) ===
+        dx_true = A @ x_true + B.flatten() * u # + total_disturbance
+
+        # === Store control input ===
+        tau_storage.append(u)
+
+        # === Pack derivative ===
         dz = np.concatenate((dx_true, dx_hat))
         return dz
 
@@ -143,19 +144,15 @@ def lqg_simulation_linear_continuous(x0, sys_c, K, L, t_span, t_eval,
 
 
 
-def lqg_simulation_linear_discrete(x0, sys_d, K_d, L_d, t_eval,
-                                   measurement_noise_std=0.0,
-                                   disturbance_func=None,
-                                   impulse_time=None,
-                                   impulse_magnitude=1.0):
+def lqg_simulation_linear_discrete(x0, sys_c, sys_d, K, L, t_eval):
     """
-    Simulate discrete-time LQG closed-loop system with measurement noise, disturbance, and single impulse input.
+    Simulate discrete-time LQG closed-loop system
 
     Parameters:
         x0: initial state (shape: [4])
         sys_d: discrete-time state-space system
-        K_d: discrete-time state feedback gain (shape: [1, 4])
-        L_d: discrete-time observer gain (shape: [4, 4])
+        K: state feedback gain (shape: [1, 4])
+        L: observer gain (shape: [4, 4])
         t_eval: time points to evaluate (numpy array)
         measurement_noise_std: standard deviation of measurement noise
         disturbance_func: function of time f(t) -> disturbance input (optional)
@@ -168,9 +165,13 @@ def lqg_simulation_linear_discrete(x0, sys_d, K_d, L_d, t_eval,
         x_hat_traj: estimated state trajectory (shape: [4, N])
         tau_traj: control input trajectory (shape: [N])
     """
-    A = sys_d.A
-    B = sys_d.B
-    C = sys_d.C
+    A_c = sys_c.A
+    B_c = sys_c.B
+    # C_c = sys_c.C
+
+    A_d = sys_d.A
+    B_d = sys_d.B
+    C_d = sys_d.C
     dt = sys_d.dt
 
     N = len(t_eval)
@@ -188,37 +189,29 @@ def lqg_simulation_linear_discrete(x0, sys_d, K_d, L_d, t_eval,
     x_true_traj[:, 0] = x_true
     x_hat_traj[:, 0] = x_hat
 
-    # Pre-compute impulse index (if any)
-    if impulse_time is not None:
-        impulse_index = np.argmin(np.abs(t_eval - impulse_time))
-    else:
-        impulse_index = None
+    u = float(-K @ x_hat)
 
     # Simulation loop
     for k in range(N - 1):
-        t = t_eval[k]
-
-        # Measurement (with noise)
-        measurement_noise = measurement_noise_std * np.random.randn(C.shape[0])
-        y_meas = C @ x_true + measurement_noise
-
-        # Control input
-        u = -K_d @ x_hat
-        tau_traj[k] = u.item()
-
-        # Disturbance
-        disturbance = disturbance_func(t) if disturbance_func is not None else 0.0
-
-        # Impulse
-        impulse = np.zeros_like(x_true)
-        if impulse_index is not None and k == impulse_index:
-            impulse += impulse_magnitude  # Apply same magnitude to all states, or modify if desired
+        # Control based on current estimate
+        u = float(-K @ x_hat)
+        tau_traj[k] = u
 
         # True state update
-        x_true = A @ x_true + B.flatten() * (u + disturbance) + impulse
+        x_true = A_d @ x_true + B_d.flatten() * u
 
-        # Observer state update
-        x_hat = A @ x_hat + B.flatten() * u + L_d @ (y_meas - C @ x_hat)
+        # Measurement
+        x_std_d = 0.01      # encoder error in meters
+        dx_std_d = 0.01       # IMU-integrated linear velocity (m/s)
+        theta_std_d = 0.1    # integrated angle error (rad)
+        dtheta_std_d = 0.01  # IMU gyro noise (rad/s)
+        measurement_noise_std = np.array([x_std_d, dx_std_d, theta_std_d, dtheta_std_d])*np.sqrt(dt)
+        measurement_noise = measurement_noise_std * np.random.randn(C_d.shape[0])
+        y_meas = C_d @ x_true + measurement_noise
+
+        # Observer: predict and correct
+        x_hat_pred = A_d @ x_hat + B_d.flatten() * u
+        x_hat = x_hat_pred + L @ (y_meas - C_d @ x_hat_pred)
 
         # Store trajectories
         x_true_traj[:, k + 1] = x_true

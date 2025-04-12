@@ -5,7 +5,7 @@
 #include "utils.hpp"
 
 //frequency
-float dt = 0.01f; // s
+float dt = 0.005f; // s
 // Global Objects
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can1;
 Motor leftMotor(&can1, 1, 1);
