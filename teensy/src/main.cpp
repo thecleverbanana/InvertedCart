@@ -5,7 +5,7 @@
 #include "utils.hpp"
 
 //frequency
-float dt = 0.005f; // s
+float dt = 0.001f; // s
 // Global Objects
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can1;
 Motor leftMotor(&can1, 1, 1);
@@ -103,16 +103,17 @@ void loop() {
   x[2] = imu_motor_data.Yangle;
   x[3] = imu_board_data.Ygyro;
 
-  Serial.print(">");
-  Serial.printf("x: %7.4f m", x[0]);Serial.printf(",");
-  Serial.printf("dx: %6.3f m", x[1]);Serial.printf(",");
-  Serial.printf("theta: %7.4f m", x[2]);Serial.printf(",");
-  Serial.printf("dtheta: %6.3f m", x[3]);Serial.printf(",");
-  Serial.println();
+  // Serial.print(">");
+  // Serial.printf("x: %7.4f m", x[0]);Serial.printf(",");
+  // Serial.printf("dx: %6.3f m", x[1]);Serial.printf(",");
+  // Serial.printf("theta: %7.4f m", x[2]);Serial.printf(",");
+  // Serial.printf("dtheta: %6.3f m", x[3]);Serial.printf(",");
+  // Serial.println();
 
   //Apply Control
   // float u = controller.updateLQR(x[0], x[1], x[2], x[3]);
   float u = controller.updateLQG(x[0], x[1], x[2], x[3]);
+  // float u = controller.updateLQGArchieve(x[0], x[1], x[2], x[3]);
 
   leftMotor.setTorque(u/2);
   rightMotor.setTorque(u/2); 

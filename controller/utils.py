@@ -371,7 +371,6 @@ def H_func(x):
 def V_func(x):
     return np.eye(len(x))
 
-# Estimation function
 def ekf_estimation(x_prev, P_prev, u_prev, Q, f_func, A_func, W_func):
     """
     EKF Estimation (Prediction) step
@@ -407,9 +406,9 @@ def ekf_estimation(x_prev, P_prev, u_prev, Q, f_func, A_func, W_func):
     W_k = W_func(x_prev, u_prev)
 
     # 3. Covariance prediction
-    P_prev = A_k @ P_prev @ A_k.T + W_k @ Q @ W_k.T
+    P_pred = A_k @ P_prev @ A_k.T + W_k @ Q @ W_k.T
 
-    return x_pred, P_prev
+    return x_pred, P_pred
 
 def ekf_correction(x_pred, P_prev, z_k, R, h_func, H_func, V_func):
     """
@@ -570,17 +569,18 @@ def ekf_simulation_nonlinear_discrete(x0, P0, K,t_eval, Q, R,
             u = u_filtered
         # u = smooth_deadzone_compensation(u)
         tau_traj[k] = u
-
+        print(f"u = {u}")
         # ===== EKF Estimation =====
         x_pred, P_prev = ekf_estimation(x_hat, P, u, Q, f_func, A_func, W_func)
     
         # Measurement noise
         measurement_noise = measurement_noise_std * np.random.randn(x_true_traj.shape[0])
         z_k = h_func(x_true) + measurement_noise
-
+        print(f"z_k = {z_k}")
         # ===== EKF Correction =====
         x_hat, P, L = ekf_correction(x_pred, P_prev, z_k, R, h_func, H_func, V_func)
-
+        
+        print(f"P = {P}")
         # True state update with (disturbances + impulse )
         epsilon = 1e-6  # duration of impulse approximation
         if abs(dt*k - t_impulse) < epsilon:
@@ -592,6 +592,7 @@ def ekf_simulation_nonlinear_discrete(x0, P0, K,t_eval, Q, R,
 
         dx_true = f_func(x_true, u) + disturbance_noise+impulse
         x_true = x_true + dt * dx_true
+        print(f"dx_true= {dx_true}")
 
         x_true_traj[:, k+1] = x_true
         x_hat_traj[:, k+1] = x_hat
