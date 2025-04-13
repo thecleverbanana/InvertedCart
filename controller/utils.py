@@ -315,7 +315,7 @@ def f_func(x, tau):
     # Return state derivative: [dx, ddx, dtheta, ddtheta]
     return np.array([vel, xdd, dtheta, thetadd])
 
-def A_func(x,tau):
+def A_func(x,tau):  #Continuous Jacobian function, need to discretize in order to use in ekf
     pos, vel, theta, dtheta = x
     cos_theta = np.cos(theta)
     sin_theta = np.sin(theta)
@@ -371,7 +371,7 @@ def H_func(x):
 def V_func(x):
     return np.eye(len(x))
 
-def ekf_estimation(x_prev, P_prev, u_prev, Q, f_func, A_func, W_func):
+def ekf_estimation(x_prev, P_prev, u_prev, Q, dt, f_func, A_func, W_func):
     """
     EKF Estimation (Prediction) step
 
@@ -384,12 +384,14 @@ def ekf_estimation(x_prev, P_prev, u_prev, Q, f_func, A_func, W_func):
             Previous control input (m,)
         Q : ndarray
             Process noise covariance (l, l)
+        dt : float
+            Time step for discretization
         f_func : function
-            System dynamics function: f(x, u, w=0)
+            Continuous-time system dynamics: f(x, u) -> dx/dt
         A_func : function
-            Jacobian of f w.r.t. x at (x_prev, u_prev)
+            Jacobian of f w.r.t. x (continuous-time)
         W_func : function
-            Jacobian of f w.r.t. w at (x_prev, u_prev)
+            Jacobian of f w.r.t. process noise (continuous-time)
 
     Returns:
         x_pred : ndarray
@@ -397,16 +399,17 @@ def ekf_estimation(x_prev, P_prev, u_prev, Q, f_func, A_func, W_func):
         P_pred : ndarray
             Predicted covariance estimate (n, n)
     """
-    # 1. State prediction
-    w_zero = np.zeros_like(x_prev)  #Assumed
-    x_pred = f_func(x_prev,u_prev)
+    # 1. State prediction using Euler integration
+    dx_pred = f_func(x_prev, u_prev)  # Continuous-time derivative
+    x_pred = x_prev + dt * dx_pred    # Discrete-time state prediction
 
     # 2. Jacobians
-    A_k = A_func(x_prev, u_prev)
-    W_k = W_func(x_prev, u_prev)
+    A_cont = A_func(x_prev, u_prev)   # Continuous-time Jacobian df/dx
+    A_k = np.eye(len(x_prev)) + dt * A_cont  # Discrete-time Jacobian
+    W_k = W_func(x_prev, u_prev)      # Noise mapping matrix
 
     # 3. Covariance prediction
-    P_pred = A_k @ P_prev @ A_k.T + W_k @ Q @ W_k.T
+    P_pred = A_k @ P_prev @ A_k.T + (dt**2) * W_k @ Q @ W_k.T
 
     return x_pred, P_pred
 
@@ -569,18 +572,15 @@ def ekf_simulation_nonlinear_discrete(x0, P0, K,t_eval, Q, R,
             u = u_filtered
         # u = smooth_deadzone_compensation(u)
         tau_traj[k] = u
-        print(f"u = {u}")
         # ===== EKF Estimation =====
-        x_pred, P_prev = ekf_estimation(x_hat, P, u, Q, f_func, A_func, W_func)
+        x_pred, P_prev = ekf_estimation(x_hat, P, u, Q, dt, f_func, A_func, W_func)
     
         # Measurement noise
         measurement_noise = measurement_noise_std * np.random.randn(x_true_traj.shape[0])
         z_k = h_func(x_true) + measurement_noise
-        print(f"z_k = {z_k}")
         # ===== EKF Correction =====
         x_hat, P, L = ekf_correction(x_pred, P_prev, z_k, R, h_func, H_func, V_func)
         
-        print(f"P = {P}")
         # True state update with (disturbances + impulse )
         epsilon = 1e-6  # duration of impulse approximation
         if abs(dt*k - t_impulse) < epsilon:
@@ -592,7 +592,6 @@ def ekf_simulation_nonlinear_discrete(x0, P0, K,t_eval, Q, R,
 
         dx_true = f_func(x_true, u) + disturbance_noise+impulse
         x_true = x_true + dt * dx_true
-        print(f"dx_true= {dx_true}")
 
         x_true_traj[:, k+1] = x_true
         x_hat_traj[:, k+1] = x_hat
