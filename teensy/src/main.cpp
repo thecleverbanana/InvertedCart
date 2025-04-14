@@ -8,12 +8,14 @@
 float dt = 0.005f; // s
 // Global Objects
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can1;
+
 Motor leftMotor(&can1, 1, 1);
 Motor rightMotor(&can1, 2, -1);
+
 Controller controller(&leftMotor, &rightMotor, dt); 
+
 IMU imu_board(Wire2, PI, 0.0f, PI/2.0f, "Board_IMU", 0.02, 0.12, 0.2);
 IMU imu_motor(Wire1, PI/2.0f, 0.0f, 0.0f, "Motor_IMU", 0.02, 0.015, 0.2);
-// IMU imu_motor(Wire1, PI / 2.0f, 0.0f, 0.0f);
 
 
 //Global Variable
@@ -26,6 +28,16 @@ IMU_DATA imu_board_data, imu_motor_data;
 //For control
 float x[4];   //Real Data
 float x_hat[4];   //Predict Data
+
+//Debug
+Vectorx4 x_test = { 
+  0.0f,   // x position (meters)
+  0.0f,   // x velocity (m/s)
+  0.1f,   // theta (radians)
+  0.0f    // theta_dot (rad/s)
+};
+
+float u_test = 0;
 
 void setup() {
   // Initialize serial communication
@@ -53,7 +65,7 @@ void setup() {
   leftMotor.setTorque(0.0f);
   rightMotor.setTorque(0.0f);
 
-  Serial.println("Motors initialized with 0.0 N/m torque");
+  // Serial.println("Motors initialized with 0.0 N/m torque");
 
   //IMU initialization
   Wire1.setClock(1000000);  // 1 MHz
@@ -81,8 +93,8 @@ void setup() {
   x_hat[0] = -radians(leftMotor.getCurrentDeltaAngle())*wheelRadius;
   x_hat[1] = imu_motor_data.Xacc;
   x_hat[2] = imu_motor_data.Yangle;
-  x_hat[3] = imu_board_data.Ygyro;
-  
+  x_hat[3] = imu_motor_data.Ygyro;
+
   controller.initializeState(x_hat);
 }
 
@@ -101,7 +113,7 @@ void loop() {
   x[0] = fusedPositionEstimate(x[0], x[1], dt);
   x[1] = imu_motor_data.Xacc;
   x[2] = imu_motor_data.Yangle;
-  x[3] = imu_board_data.Ygyro;
+  x[3] = imu_motor_data.Ygyro;
 
   Serial.print(">");
   Serial.printf("x: %7.4f m", x[0]);Serial.printf(",");
@@ -113,13 +125,16 @@ void loop() {
   //Apply Control
   // float u = controller.updateLQR(x[0], x[1], x[2], x[3]);
   // float u = controller.updateLQG(x[0], x[1], x[2], x[3]);
-  float u = controller.updateEKF_LQG(0.0, 0.0, 0.0, 0.0);
+  float u = controller.updateEKF_LQG(x[0], x[1], x[2], x[3]);
   Serial.print(">");
   Serial.printf("u: %7.4f m", u);
   Serial.println();
 
   // leftMotor.setTorque(u/2);
   // rightMotor.setTorque(u/2); 
+
+  //Debug
+  // controller.debugFunc(x_test,u_test);
 
   if (Serial.available()) {
     char cmd = Serial.read();

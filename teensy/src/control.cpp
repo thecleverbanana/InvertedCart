@@ -1,23 +1,29 @@
 #include "control.hpp"
-#include <cmath>
 
 Controller::Controller(Motor* left, Motor* right, float dt): motorLeft(left), motorRight(right) {}
 
 void Controller::initializeState(const float x_hat_init[4]) {
+    // Convert input array to Vectorx4
+    Vectorx4 x_init_vec;
     for (int i = 0; i < 4; ++i) {
-        this->x_hat[i] = x_hat_init[i];
+        x_init_vec(i,0) = x_hat_init[i];
     }
 
-    for (int i = 0; i < 4; ++i) {
-        u -= x_hat_init[i]*K[i];
-    }
+    // Initialize state estimate
+    this->x_hat = x_init_vec;
 
+    // Control input correction: u = -K * x_hat_init
+    float u = -(~K * x_init_vec)(0,0);
+
+    // Initialize filtered control input
     u_filtered = u;
+
+    // Debug print
     Serial.print("Initialized x_hat and u_filtered: ");
-    Serial.printf("x: %.4f, ", x_hat[0]);
-    Serial.printf("dx: %.4f, ", x_hat[1]);
-    Serial.printf("theta: %.4f, ", x_hat[2]);
-    Serial.printf("dtheta: %.4f\n", x_hat[3]);
+    Serial.printf("x: %.4f, ", x_hat(0,0));
+    Serial.printf("dx: %.4f, ", x_hat(1,0));
+    Serial.printf("theta: %.4f, ", x_hat(2,0));
+    Serial.printf("dtheta: %.4f\n", x_hat(3,0));
     Serial.printf("u_filtered: %.4f\n", u_filtered);
 }
 
@@ -26,31 +32,27 @@ void Controller:: setDt(float new_dt){
 }
 
 float Controller::updateLQR(float x_meas, float dx_meas, float theta_meas, float dtheta_meas){
-    float x[4] = {x_meas, dx_meas, theta_meas, dtheta_meas};
+    Vectorx4 x = { x_meas, dx_meas, theta_meas, dtheta_meas };
 
-    float u = 0;
-    for(int i = 0; i < 4; ++i){
-        u -= K[i] * x[i];
-    }
-        // Torque Limit
-        if (u > TORQUE_LIMIT) u = TORQUE_LIMIT;
-        if (u < -TORQUE_LIMIT) u = -TORQUE_LIMIT;
+    float u = -(~K * x)(0,0);
 
-        Serial.print(">");
-        Serial.printf("tau: %6.3f Nm", u);
-        Serial.println();
+    // Torque Limit
+    if (u > TORQUE_LIMIT) u = TORQUE_LIMIT;
+    if (u < -TORQUE_LIMIT) u = -TORQUE_LIMIT;
 
-        return u;
+    Serial.print(">");
+    Serial.printf("tau: %6.3f Nm", u);
+    Serial.println();
+
+    return u;
 }
 
 float Controller::updateLQG(float x_meas, float dx_meas, float theta_meas, float dtheta_meas) {
-    float y[4] = {x_meas, dx_meas, theta_meas, dtheta_meas};
-    // === 1. u based on previous x estimation  ===
-    float u = 0.0f;
+    // === 1. Measurement vector (y) ===
+    Vectorx4 y = { x_meas, dx_meas, theta_meas, dtheta_meas };
 
-    for(int i=0; i<4; i++){
-        u -= K[i]*x_hat[i];
-    }
+    // === 2. Control law: u = -K^T * x_hat ===
+    float u = -(~K * x_hat)(0,0); // Transpose K (4x1 -> 1x4) * x_hat (4x1) = (1x1), extract scalar
 
     u_filtered = lowPassFilter(u,u_filtered);    //apply filter
     u = u_filtered;
@@ -59,79 +61,152 @@ float Controller::updateLQG(float x_meas, float dx_meas, float theta_meas, float
     if (u > TORQUE_LIMIT) u = TORQUE_LIMIT;
     if (u < -TORQUE_LIMIT) u = -TORQUE_LIMIT;
 
-    // === 2. Observer update ===
-    // Compute state estimate prediction: x_hat_pred = A * x_hat + B * u
-    float x_hat_pred[4] = {0.0f};
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            x_hat_pred[i] += A[i][j] * x_hat[j];
-        }
-        x_hat_pred[i] += B[i] * u;
-    }
+    // === 3. Observer update ===
+    // Predict next state: x_hat_pred = A * x_hat + B * u
+    Vectorx4 x_hat_pred = A * x_hat + B * u;
 
     // Measurement innovation: y - x_hat_pred (since C = Identity)
-    float innovation[4];
-    for (int i = 0; i < 4; i++) {
-        innovation[i] = y[i] - x_hat_pred[i];
-    }
+    Vectorx4 innovation = y - x_hat_pred;
 
-    // Correct state estimate: x_hat_next = x_hat_pred + L * innovation
-    float x_hat_next[4] = {0.0f};
-    for (int i = 0; i < 4; i++) {
-        x_hat_next[i] = x_hat_pred[i];
-        for (int j = 0; j < 4; j++) {
-            x_hat_next[i] += L[i][j] * innovation[j];
-        }
-    }
-
-    // Update state estimate
-    for (int i = 0; i < 4; i++) {
-        x_hat[i] = x_hat_next[i];
-    } 
+    // Corrected state estimate: x_hat = x_hat_pred + L * innovation
+    x_hat= x_hat_pred + L * innovation;
 
     // --- Debug print ---
     // Serial.print(">");
-    // Serial.printf("x_hat: %7.4f m", x_hat[0]); Serial.printf(",");
-    // Serial.printf("dx_hat: %6.3f m/s", x_hat[1]);Serial.printf(",");
-    // Serial.printf("theta_hat: %7.4f rad", x_hat[2]);Serial.printf(",");
-    // Serial.printf("dtheta_hat: %6.3f rad/s", x_hat[3]); Serial.printf(",");
-    // Serial.printf("tau: %6.3f Nm", u);
-    // Serial.println();
+    // Serial.printf("x_hat: %7.4f m, ", x_hat(0,0));
+    // Serial.printf("dx_hat: %6.3f m/s, ", x_hat(1,0));
+    // Serial.printf("theta_hat: %7.4f rad, ", x_hat(2,0));
+    // Serial.printf("dtheta_hat: %6.3f rad/s, ", x_hat(3,0));
+    // Serial.printf("tau: %6.3f Nm\n", u);
 
     return u;
 }
 
 float Controller::updateEKF_LQG(float x_meas, float dx_meas, float theta_meas, float dtheta_meas){
-     // Current measurement as state
-     State z_k = {x_meas, dx_meas, theta_meas, dtheta_meas};
+    // x_k_priori = x_k-1 + f_func * dt
+    float u = -(~K * this->x_hat)(0,0); 
+    Vectorx4 x_pred = this->x_hat+f_func(this->x_hat,u)*dt;
+    Vectorx4 f_out = f_func(this->x_hat, u);
+    // Serial.print(">");
+    // Serial.printf("x_f_func: %7.4f m, ", f_out(0,0));          
+    // Serial.printf("dx_f_func: %6.3f m/s, ", f_out(1,0));      
+    // Serial.printf("theta_f_func: %7.4f rad, ", f_out(2,0));    
+    // Serial.printf("dtheta_f_func: %6.3f rad/s, ", f_out(3,0)); 
+    // Serial.println();  
 
-     // ===== EKF Estimation (Prediction Step) =====
-     State x_pred;
-     Matrix4x4 P_pred;
-     ekf_estimation(x_hat, P, u_prev, Q, dt, f_func, A_func, W_func, x_pred, P_pred);
- 
-     // ===== EKF Correction (Update Step) =====
-     ekf_correction(x_pred, P_pred, z_k, R, h_func, H_func, V_func);
+    //P_k_priori = JacobianA @ P_k-1 @ Jacobian A.T + W @ Qn @ W.T
+    Matrix4x4 I = makeIdentity();
+    Matrix4x4 A_k = I+A_func(this->x_hat,u)*dt;
+    Matrix4x4 W_k = W_func(this->x_hat, u);
+    Matrix4x4 P_pred = A_k * this->P * (~A_k) + W_k * this->Q * (~W_k);
+    // Serial.print("> P matrix: ");
+    // Serial.printf("P00:%7.4f,", P_pred(0,0));
+    // Serial.printf("P01:%7.4f,", P_pred(0,1));
+    // Serial.printf("P02:%7.4f,", P_pred(0,2));
+    // Serial.printf("P03:%7.4f,", P_pred(0,3));
+    // Serial.printf("P10:%7.4f,", P_pred(1,0));
+    // Serial.printf("P11:%7.4f,", P_pred(1,1));
+    // Serial.printf("P12:%7.4f,", P_pred(1,2));
+    // Serial.printf("P13:%7.4f,", P_pred(1,3));
+    // Serial.printf("P20:%7.4f,", P_pred(2,0));
+    // Serial.printf("P21:%7.4f,", P_pred(2,1));
+    // Serial.printf("P22:%7.4f,", P_pred(2,2));
+    // Serial.printf("P23:%7.4f,", P_pred(2,3));
+    // Serial.printf("P30:%7.4f,", P_pred(3,0));
+    // Serial.printf("P31:%7.4f,", P_pred(3,1));
+    // Serial.printf("P32:%7.4f,", P_pred(3,2));
+    // Serial.printf("P33:%7.4f",   P_pred(3,3));
+    // Serial.println();
 
-    // Control input u = -K * x_hat
-    float u_current = 0.0f;
-    for (int i = 0; i < 4; ++i) {
-        u_current -= K[i] * x_hat[i]; // K: your controller gain, assumed K[4]
-    }
+
+    //Kalman Gain
+    Matrix4x4 V_k = V_func(x_pred);
+    Matrix4x4 H_k = H_func(x_pred);
+    Matrix4x4 S_k = H_k * P_pred * (~H_k) + V_k * R * (~V_k);
+    Matrix4x4 S_inv = Invert(S_k);
+    this->K_k = P_pred * (~H_k) * S_inv;
+
+    //Correction based on new Kalman Gain
+    // Current measurement as state
+    Vectorx4 z_k = {x_meas, dx_meas, theta_meas, dtheta_meas};
+    Serial.print(">");
+    Serial.printf("x_z_k: %7.4f m, ", z_k(0,0));          // Numerical ∂h₀/∂xⱼ
+    Serial.printf("dx_z_k: %6.3f m/s, ", z_k(1,0));       // Numerical ∂h₁/∂xⱼ
+    Serial.printf("theta_z_k: %7.4f rad, ", z_k(2,0));    // Numerical ∂h₂/∂xⱼ
+    Serial.printf("dtheta_z_k: %6.3f rad/s, ", z_k(3,0)); // Numerical ∂h₃/∂xⱼ
+    Serial.println(); 
+    Vectorx4 h_pred = h_func(x_pred);
+    Vectorx4 y_k = z_k - h_pred;   
+    Serial.print(">");
+    Serial.printf("x_y_k: %7.4f m, ", y_k(0,0));          // Numerical ∂h₀/∂xⱼ
+    Serial.printf("dx_y_k: %6.3f m/s, ", y_k(1,0));       // Numerical ∂h₁/∂xⱼ
+    Serial.printf("theta_y_k: %7.4f rad, ", y_k(2,0));    // Numerical ∂h₂/∂xⱼ
+    Serial.printf("dtheta_y_k: %6.3f rad/s, ", y_k(3,0)); // Numerical ∂h₃/∂xⱼ
+    Serial.println();  
+    this->x_hat = x_pred + (this->K_k * y_k);
+
+    // Serial.print(">");
+    // Serial.printf("x_hat: %7.4f m, ", x_hat(0,0));          // Numerical ∂h₀/∂xⱼ
+    // Serial.printf("dx_hat: %6.3f m/s, ", x_hat(1,0));       // Numerical ∂h₁/∂xⱼ
+    // Serial.printf("theta_hat: %7.4f rad, ", x_hat(2,0));    // Numerical ∂h₂/∂xⱼ
+    // Serial.printf("dtheta_hat: %6.3f rad/s, ", x_hat(3,0)); // Numerical ∂h₃/∂xⱼ
+    // Serial.println();
+
+    u = -(~K * this->x_hat)(0,0);
     
-    u_prev = u_current;
+    //Update covariance matrix
+    this->P = (I - this->K_k * H_k) * P_pred;
+    // Serial.print("> P matrix: ");
+    // Serial.printf("P00:%7.4f,", this->P(0,0));
+    // Serial.printf("P01:%7.4f,", this->P(0,1));
+    // Serial.printf("P02:%7.4f,", this->P(0,2));
+    // Serial.printf("P03:%7.4f,", this->P(0,3));
+    // Serial.printf("P10:%7.4f,", this->P(1,0));
+    // Serial.printf("P11:%7.4f,", this->P(1,1));
+    // Serial.printf("P12:%7.4f,", this->P(1,2));
+    // Serial.printf("P13:%7.4f,", this->P(1,3));
+    // Serial.printf("P20:%7.4f,", this->P(2,0));
+    // Serial.printf("P21:%7.4f,", this->P(2,1));
+    // Serial.printf("P22:%7.4f,", this->P(2,2));
+    // Serial.printf("P23:%7.4f,", this->P(2,3));
+    // Serial.printf("P30:%7.4f,", this->P(3,0));
+    // Serial.printf("P31:%7.4f,", this->P(3,1));
+    // Serial.printf("P32:%7.4f,", this->P(3,2));
+    // Serial.printf("P33:%7.4f",  this->P(3,3));
+    // Serial.println();
 
-    // --- Debug print ---
-     Serial.print(">");
-     Serial.printf("x_hat: %7.4f m", x_hat[0]); Serial.printf(",");
-     Serial.printf("dx_hat: %6.3f m/s", x_hat[1]);Serial.printf(",");
-     Serial.printf("theta_hat: %7.4f rad", x_hat[2]);Serial.printf(",");
-     Serial.printf("dtheta_hat: %6.3f rad/s", x_hat[3]);Serial.printf(",");
-     Serial.printf("P: %6.3f rad/s", P);
-     Serial.println();
+    return u;
+}
 
-    // Return control input
-     return u_current;
+void Controller::debugFunc(Vectorx4& x_test, float u_test) {
+    static int current_col = 0;
+    const float eps = 1e-5f;
+
+    // Step 1: Compute baseline h(x)
+    Vectorx4 h_x = h_func(x_test);
+
+    // Step 2: Perturb current state dimension
+    Vectorx4 x_perturbed = x_test;
+    x_perturbed(current_col, 0) += eps;
+
+    Vectorx4 h_perturbed = h_func(x_perturbed);
+
+    // Step 3: Estimate derivative numerically
+    Vectorx4 diff = (h_perturbed - h_x) * (1.0f / eps);
+
+    // Step 4: Compute analytical H_func()
+    Matrix4x4 H_analytical = H_func(x_test);
+
+    // Step 5: Strict serial print format (你的要求格式)
+    Serial.print(">");
+    Serial.printf("x_hat: %7.4f m, ", diff(0,0));          // Numerical ∂h₀/∂xⱼ
+    Serial.printf("dx_hat: %6.3f m/s, ", diff(1,0));       // Numerical ∂h₁/∂xⱼ
+    Serial.printf("theta_hat: %7.4f rad, ", diff(2,0));    // Numerical ∂h₂/∂xⱼ
+    Serial.printf("dtheta_hat: %6.3f rad/s, ", diff(3,0)); // Numerical ∂h₃/∂xⱼ
+    Serial.println();
+
+    // Step 6: Advance to next column
+    current_col = (current_col + 1) % 4;
 }
 
 float Controller::lowPassFilter(float new_value, float prev_filtered_value, float alpha = 0.9f) {
@@ -164,11 +239,11 @@ float Controller::applyAggressiveBoost(float u) {
     return u;
 }
 
-State Controller::f_func(const State& x, float tau) {
-    float pos = x[0];
-    float vel = x[1];
-    float theta = x[2];
-    float dtheta = x[3];
+Vectorx4 Controller::f_func(const Vectorx4& x, float tau) {
+    float pos = x(0,0);
+    float vel = x(1,0);
+    float theta = x(2,0);
+    float dtheta = x(3,0);
 
     float cos_theta = std::cos(theta);
     float sin_theta = std::sin(theta);
@@ -192,14 +267,14 @@ State Controller::f_func(const State& x, float tau) {
         + 0.00147106890936f * sin_theta
     ) / denominator;
 
-    return {vel, xdd, dtheta, thetadd};
+    return Vectorx4{ vel, xdd, dtheta, thetadd };
 }
 
-Matrix4x4 Controller::A_func(const State& x, float tau) {
-    float pos = x[0];
-    float vel = x[1];
-    float theta = x[2];
-    float dtheta = x[3];
+Matrix4x4 Controller::A_func(const Vectorx4& x, float tau) {
+    float pos = x(0,0);
+    float vel = x(1,0);
+    float theta = x(2,0);
+    float dtheta = x(3,0);
 
     float cos_theta = std::cos(theta);
     float sin_theta = std::sin(theta);
@@ -208,12 +283,12 @@ Matrix4x4 Controller::A_func(const State& x, float tau) {
     float denom1 = std::pow(1.0f - 0.0768539348317381f * cos_theta_sq, 2);
     float denom2 = 5.082572504e-5f - 3.90615696e-6f * cos_theta_sq;
 
-    // Prepare matrix 
-    Matrix4x4 A = { 0 };
+    // Prepare matrix (initialize to zero)
+    Matrix4x4 A = Zeros<4,4>();
 
-    A[0][1] = 1.0f;
+    A(0,1) = 1.0f;
 
-    A[1][2] =
+    A(1,2) =
         0.358623393996421f * tau * sin_theta * cos_theta_sq / denom1 +
         2.02584838322831f * tau * sin_theta * cos_theta / denom1 +
         0.000118584f * tau * sin_theta / denom2 +
@@ -223,13 +298,13 @@ Matrix4x4 Controller::A_func(const State& x, float tau) {
         3.83193997776e-5f * cos_theta_sq / denom2 +
         1.3239429264e-6f * cos_theta * dtheta * dtheta / denom2;
 
-    A[1][3] = 2.6478858528e-6f * sin_theta * dtheta / denom2;
+    A(1,3) = 2.6478858528e-6f * sin_theta * dtheta / denom2;
 
-    A[2][3] = 1.0f;
+    A(2,3) = 1.0f;
 
-    A[3][2] =
+    A(3,2) =
         -5.97705656660701f * tau * sin_theta * cos_theta_sq / denom1 -
-        13.7674318527736f * tau * sin_theta * cos_theta / denom1 -
+        -13.7674318527736f * tau * sin_theta * cos_theta / denom1 -
         0.0019764f * tau * sin_theta / denom2 +
         0.0118130545982421f * sin_theta * sin_theta * cos_theta_sq * dtheta * dtheta / denom1 -
         4.44882720330986f * sin_theta * sin_theta * cos_theta / denom1 +
@@ -237,169 +312,116 @@ Matrix4x4 Controller::A_func(const State& x, float tau) {
         3.90615696e-6f * cos_theta_sq * dtheta * dtheta / denom2 +
         0.00147106890936f * cos_theta / denom2;
 
-    A[3][3] = -7.81231392e-6f * sin_theta * cos_theta * dtheta / denom2;
+    A(3,3) = -7.81231392e-6f * sin_theta * cos_theta * dtheta / denom2;
 
     return A;
 }
 
-Matrix4x4 Controller::W_func(const State& x, float tau) {
-    Matrix4x4 W = { 0.0f };
+Matrix4x4 Controller::W_func(const Vectorx4& x, float tau) {
+    // // Initialize W as zero matrix
+    // Matrix4x4 W = Zeros<4,4>();
 
-    W[1][1] = 1.0f; // velocity noise from acceleration
-    W[3][3] = 1.0f; // angular velocity noise from angular acceleration
+    // // Set diagonal elements for process noise mapping
+    // W(1,1) = 1.0f; // velocity noise from acceleration
+    // W(3,3) = 1.0f; // angular velocity noise from angular acceleration
 
-    return W;
+    // return W;
+    return makeIdentity();
 }
 
-State Controller::h_func(const State& x) {
+Vectorx4 Controller::h_func(const Vectorx4& x) {
     return x;
 }
 
-Matrix4x4 Controller::H_func(const State& x) {
-    Matrix4x4 H = { 0.0f };
-
-    for (int i = 0; i < 4; ++i) {
-        H[i][i] = 1.0f;
-    }
-
-    return H;
+Matrix4x4 Controller::H_func(const Vectorx4& x) {
+    return makeIdentity();
 }
 
-Matrix4x4 Controller::V_func(const State& x) {
-    Matrix4x4 V = { 0.0f };
-
-    for (int i = 0; i < 4; ++i) {
-        V[i][i] = 1.0f;
-    }
-
-    return V;
+Matrix4x4 Controller::V_func(const Vectorx4& x) {
+    return makeIdentity();
 }
 
-void Controller::ekf_estimation(
-    const State& x_prev, const Matrix4x4& P_prev, float u_prev,
-    const Matrix4x4& Q, float dt,
-    State (*f_func)(const State&, float),
-    Matrix4x4 (*A_func)(const State&, float),
-    Matrix4x4 (*W_func)(const State&, float),
-    State& x_pred, Matrix4x4& P_pred)
-    {
-        // 1.  (Euler integration)
-        State dx_pred = f_func(x_prev, u_prev);
-        for (int i = 0; i < 4; ++i)
-            x_pred[i] = x_prev[i] + dt * dx_pred[i];
+void Controller::ekf_estimation(Vectorx4& x_prev, Matrix4x4& P_prev, float u_prev, const Matrix4x4& Q, float dt, Vectorx4& x_pred, Matrix4x4& P_pred) {
+    // 1. State prediction (Euler integration)
+    Vectorx4 dx_pred = f_func(x_prev, u_prev);
+    x_pred = x_prev + dx_pred * dt;
 
-        // 2. Jacobians
-        Matrix4x4 A_cont = A_func(x_prev, u_prev);
-        Matrix4x4 A_k = mat_add(mat_identity(), mat_scalar_mul(A_cont, dt)); //Discrete-time Jacobian
-        Matrix4x4 W_k = W_func(x_prev, u_prev);
+    // 2. Jacobians
+    Matrix4x4 A_cont = A_func(x_prev, u_prev);
+    Matrix4x4 A_k = makeIdentity() + A_cont * dt;  // Discrete-time Jacobian
 
-        // 3. P covariance
-        Matrix4x4 temp = mat_mul(A_k, mat_mul(P_prev, mat_transpose(A_k)));
-        Matrix4x4 noise = mat_scalar_mul(mat_mul(W_k, mat_mul(Q, mat_transpose(W_k))), dt * dt);
-        P_pred = mat_add(temp, noise);
-    }
+    Matrix4x4 W_k = W_func(x_prev, u_prev);
 
-void Controller::ekf_correction(
-    const State& x_pred, const Matrix4x4& P_pred, const State& z_k,
-    const Matrix4x4& R,
-    State (*h_func)(const State&),
-    Matrix4x4 (*H_func)(const State&),
-    Matrix4x4 (*V_func)(const State&))
-{
+    // 3. Covariance prediction
+    Matrix4x4 temp = A_k * P_prev * (~A_k);
+    Matrix4x4 noise = W_k * Q * (~W_k) * (dt * dt);
+
+    P_pred = temp + noise;
+}
+
+void Controller::ekf_correction(Vectorx4& x_pred, Matrix4x4& P_pred, Vectorx4& z_k, const Matrix4x4& R) {
     Matrix4x4 H_k = H_func(x_pred);
     Matrix4x4 V_k = V_func(x_pred);
 
     // S_k = H * P * H^T + V * R * V^T
-    Matrix4x4 S_k = mat_add(mat_mul(H_k, mat_mul(P_pred, mat_transpose(H_k))),
-                            mat_mul(V_k, mat_mul(R, mat_transpose(V_k))));
+    Matrix4x4 S_k = H_k * P_pred * (~H_k) + V_k * R * (~V_k);
 
-    Matrix4x4 S_inv = inverse_matrix(S_k); 
+    Matrix4x4 S_inv = Invert(S_k);
 
-    // Kalman gain K_k = P * H^T * S^-1
-    this->K_k = mat_mul(P_pred, mat_mul(mat_transpose(H_k), S_inv));
-
-    // y_k = z_k - h(x_pred)
-    State y_k;
-    State h_x = h_func(x_pred);
-    for (int i = 0; i < 4; ++i){
-        y_k[i] = z_k[i] - h_x[i];
-    }
-
-    // x_upd = x_pred + K * y_k
-    for (int i = 0; i < 4; ++i) {
-        this->x_hat[i] = x_pred[i];
-        for (int j = 0; j < 4; ++j){
-            this->x_hat[i] += K_k[i][j] * y_k[j];
-        }
-    }
-
-    // P_upd = (I - K * H) * P
-    Matrix4x4 I = mat_identity();
-    Matrix4x4 KH = mat_mul(this->K_k, H_k);
-    Matrix4x4 temp = { 0.0f };
-
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            temp[i][j] = I[i][j] - KH[i][j];
-        }
-    }
-
-    this->P = mat_mul(temp, P_pred);
-}
-
-
-float Controller::updateLQGArchieve(float x_meas, float dx_meas, float theta_meas, float dtheta_meas) {
-    float y[4] = {x_meas, dx_meas, theta_meas, dtheta_meas};
-    // compute u, u = -k_r * x_hat
-    float u = 0.0f;
-
-    for(int i=0; i<4; i++){
-        u -= K[i]*x_hat[i];
-    }
-
-    // --- 4. Debug print ---
+    // K_k = P * H^T * S^-1
+    this->K_k = P_pred * (~H_k) * S_inv;
     Serial.print(">");
-    Serial.printf("x_hat: %7.4f m", x_hat[0]); Serial.printf(",");
-    Serial.printf("dx_hat: %6.3f m/s", x_hat[1]);Serial.printf(",");
-    Serial.printf("theta_hat: %7.4f rad", x_hat[2]);Serial.printf(",");
-    Serial.printf("dtheta_hat: %6.3f rad/s", x_hat[3]); Serial.printf(",");
-    Serial.printf("tau: %6.3f Nm", u);
+    Serial.printf("K_k_1_1: %7.4f m, ", K_k(0,0));
+    Serial.printf("K_k_2_2_: %6.3f m/s, ", K_k(1,1));
+    Serial.printf("K_k_3_3_: %7.4f rad, ", K_k(2,2));
+    Serial.printf("K_k_4_4_: %6.3f rad/s, ", K_k(3,3));
     Serial.println();
 
-    // compute dx_hat, dx_hat = A*x_hat+B*u+k_f * (y-y_hat) 
-    // use linearized system here
-    float dx_hat[4];
-    for (int i = 0; i < 4; i++) {
-        dx_hat[i] = 0.0f; 
-        for (int j = 0; j < 4; j++) {
-            dx_hat[i] += A[i][j] * x_hat[j];    //A*x_hat
-        }
-    }
+    // y_k = z_k - h(x_pred)
+    Vectorx4 y_k = z_k - h_func(x_pred);
+    Serial.print(">");
+    Serial.printf("x_y_k: %7.4f m, ", y_k(0,0));
+    Serial.printf("dx_y_k: %6.3f m/s, ", y_k(1,0));
+    Serial.printf("theta_y_k: %7.4f rad, ", y_k(2,0));
+    Serial.printf("dtheta_y_k: %6.3f rad/s, ", y_k(3,0));
+    Serial.println();
 
-    for (int i = 0; i < 4; i++) {
-        dx_hat[i] += B[i]*u;    //B*u
-    }
+    // x_hat = x_pred + K * y_k
+    this->x_hat = x_pred + this->K_k * y_k;
 
-    float yMinusyhat[4];
-    for(int i = 0; i < 4; i++){
-        yMinusyhat[i] = y[i] - x_hat[i]; // Here assume x_hat is full state observable with identity matrix C
-        for(int j = 0; j < 4; j++){
-            dx_hat[i] += L[i][j] * yMinusyhat[j];
-        }
-    }
+    // P = (I - K * H) * P_pred
+    Matrix4x4 I = makeIdentity();
+    this->P = (I - this->K_k * H_k) * P_pred;
+}
+    
+float Controller::updateLQGArchieve(float x_meas, float dx_meas, float theta_meas, float dtheta_meas) {
+    // Measurement vector y
+    Vectorx4 y = { x_meas, dx_meas, theta_meas, dtheta_meas };
 
-    // compute x_hat+1, x_hat+1 = x_hat+dx_hat*dt
-     for(int i=0; i<4; i++){
-        x_hat[i] = x_hat[i]+dt*dx_hat[i];
-     }
+    // --- 1. Compute control input: u = -K^T * x_hat
+    float u = -(~K * x_hat)(0,0);
 
-    // Apply LQR Full State
-    for(int i=0; i<4; i++){
-        u -= K[i]*x_hat[i]; 
-    }
+    // --- 2. Debug print ---
+    Serial.print(">");
+    Serial.printf("x_hat: %7.4f m, ", x_hat(0,0));
+    Serial.printf("dx_hat: %6.3f m/s, ", x_hat(1,0));
+    Serial.printf("theta_hat: %7.4f rad, ", x_hat(2,0));
+    Serial.printf("dtheta_hat: %6.3f rad/s, ", x_hat(3,0));
+    Serial.printf("tau: %6.3f Nm\n", u);
 
-    u = applySmoothBoost(u);    //apply boost
+    // --- 3. Compute dx_hat: dx_hat = A * x_hat + B * u + L * (y - x_hat)
+    Vectorx4 dx_hat = A * x_hat + B * u + L * (y - x_hat);
+
+    // --- 4. Update state estimate: x_hat = x_hat + dx_hat * dt
+    x_hat += dx_hat * dt;
+
+    // --- 5. Recompute control input with updated state estimate
+    u = -(~K * x_hat)(0,0);
+
+    // --- 6. Apply smooth boost
+    u = applySmoothBoost(u);
 
     return u;
 }
+
     
