@@ -2,62 +2,76 @@
 #define CONTROLLER_HPP
 
 #include "motor.hpp"
+#include "utils.hpp"
+#include <array>
+
+using State = std::array<float, 4>;
+using Matrix4x4 = std::array<std::array<float, 4>, 4>;
 
 class Controller {
 public:
     Controller(Motor* left, Motor* right, float dt);
+    void initializeState(const float x_hat_init[4]);
+    void setDt(float new_dt);
     float updateLQR(float x_meas, float dx_meas, float theta_meas, float dtheta_meas); //LQR Control (With feedback) and return u
     float updateLQG(float x_meas, float dx_meas, float theta_meas, float dtheta_meas);  // LQG return u
-    float updateLQGNonLinear(float x_meas, float dx_meas, float theta_meas, float dtheta_meas);  // LQG return u
-    void setDt(float new_dt);
-    void initializeState(const float x_hat_init[4]);
-    float applySmoothBoost(float u);
-    float applyAggressiveBoost(float u);
-    float lowPassFilter(float new_value, float prev_filtered_value, float alpha = 0.9f);
+    float updateEKF_LQG(float x_meas, float dx_meas, float theta_meas, float dtheta_meas);  // LQG return u
     float updateLQGArchieve(float x_meas, float dx_meas, float theta_meas, float dtheta_meas);
        
 private:
     Motor* motorLeft;
     Motor* motorRight;
+    //Control frequency;
+    float dt = 0.005f;
 
-    //Non-linear solution function
-    float xdd_solution(float pos, float vel, float theta, float dtheta, float tau) {
-        float cos_theta = cosf(theta);
-        float sin_theta = sinf(theta);
-        float cos_theta_squared = cos_theta * cos_theta;
-    
-        float denominator = 5.082572504e-5f - 3.90615696e-6f * cos_theta_squared;
-    
-        float term1 = -0.000118584f * tau * cos_theta / denominator;
-        float term2 = -0.000669876f * tau / denominator;
-        float term3 = -3.83193997776e-5f * sin_theta * cos_theta / denominator;
-        float term4 = 1.3239429264e-6f * sin_theta * dtheta * dtheta / denominator;
-    
-        return term1 + term2 + term3 + term4;
-    }
+    float lowPassFilter(float new_value, float prev_filtered_value, float alpha = 0.9f);
+    float applySmoothBoost(float u);
+    float applyAggressiveBoost(float u);
+ 
+    // For Extended Kalman Filter
+    static State f_func(const State& x, float tau);
+    static Matrix4x4 A_func(const State& x, float tau);
+    static Matrix4x4 W_func(const State& x, float tau);
+    static State h_func(const State& x);
+    static Matrix4x4 H_func(const State& x);
+    static Matrix4x4 V_func(const State& x);
+    void ekf_estimation(
+        const State& x_prev, const Matrix4x4& P_prev, float u_prev,
+        const Matrix4x4& Q, float dt,
+        State (*f_func)(const State&, float),
+        Matrix4x4 (*A_func)(const State&, float),
+        Matrix4x4 (*W_func)(const State&, float),
+        State& x_pred, Matrix4x4& P_pred);
 
-    float thetadd_solution(float pos, float vel, float theta, float dtheta, float tau) {
-        float cos_theta = cosf(theta);
-        float sin_theta = sinf(theta);
-        float cos_theta_squared = cos_theta * cos_theta;
+    void ekf_correction(
+        const State& x_pred, const Matrix4x4& P_pred, const State& z_k,
+        const Matrix4x4& R,
+        State (*h_func)(const State&),
+        Matrix4x4 (*H_func)(const State&),
+        Matrix4x4 (*V_func)(const State&));
+
+    //Global Variable
+    State x_hat = {0.0f, 0.0f, 0.0f, 0.0f};
+    float u = 0.0f;
+    float u_filtered = u; 
+    const float deadzone_threshold = 0.2f;
+    const float max_boost = 0.05f;
+    const float TORQUE_LIMIT = 2.0f;
+
+    Matrix4x4 P = {{
+        {0.01f, 0.0f, 0.0f, 0.0f}, // pos variance: 0.01 m^2
+        {0.0f, 0.1f, 0.0f, 0.0f},  // vel variance: 0.1 (m/s)^2
+        {0.0f, 0.0f, 0.1f, 0.0f},  // theta variance: 0.1 rad^2
+        {0.0f, 0.0f, 0.0f, 0.5f}   // dtheta variance: 0.5 (rad/s)^2
+    }};
     
-        float denominator = 5.082572504e-5f - 3.90615696e-6f * cos_theta_squared;
-    
-        float term1 = 0.0019764f * tau * cos_theta / denominator;
-        float term2 = 0.0045524f * tau / denominator;
-        float term3 = -3.90615696e-6f * sin_theta * cos_theta * dtheta * dtheta / denominator;
-        float term4 = 0.00147106890936f * sin_theta / denominator;
-    
-        return term1 + term2 + term3 + term4;
-    }
-    
-    //A Matrix(discrete)
-    float A[4][4] = {
+     //A Matrix(discrete)
+     Matrix4x4 A = {{
         { 1.0f, 0.001f, -4.0835307596351804e-07f, -1.3611754973143657e-10f },
         { 0.0f, 1.0f, -0.0008167082857744718f, -4.0835307596351804e-07f },
         { 0.0f, 0.0f, 1.0000156765376695f, 0.0010000052255070954f },
         { 0.0f, 0.0f, 0.03135315725696304f, 1.0000156765376695f }
-    };
+    }};
     
     //B Matrix(discrete)
     float B[4] = {
@@ -69,32 +83,41 @@ private:
 
     // LQR gain(K)(discrete)
     float K[4] = {
-        0.40463767f,
-        1.34215075f,
-        3.83143639f,
-        1.46719294f
+        0.38283111f,
+        1.26933848f,
+        3.63235362f,
+        1.38874116f
     };
     
     // LQG observer gain (L)(Discrete)
-    float L[4][4] = {
-        { 0.9901951361173478f,     0.0009902903411694102f,   -3.750025412712118e-07f,  -2.376859497282838e-10f },
-        { 9.520465457924206e-08f,  0.9901951415017708f,     -0.0007487858594328596f,  -5.639928032586026e-07f },
-        { -3.0257512020851732e-09f, -6.161114743338966e-06f,  0.9160940367957012f,      0.0011262909522156796f },
-        { -1.840569314394952e-10f, -3.7553167240272156e-07f,  0.028932183774827494f,    0.9161068879605732f }
-    };
+    Matrix4x4 L = {{
+        { 0.99019514f, 0.00495145f, -9.3755585e-06f, -2.9694885e-08f },
+        { 4.7635137e-07f, 0.99019527f, -0.0037443736f, -1.4096054e-05f },
+        { -7.5620600e-08f, -3.0798161e-05f, 0.91643614f, 0.0056317714f },
+        { -2.2977942e-08f, -9.3770137e-06f, 0.14467674f, 0.91675705f }
+    }};
     
-    
-    //Control frequency;
-    float dt = 0.005f;
+    Matrix4x4 Q = {{
+        {1.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 1.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 1.0f, 0.0f},
+        {0.0f, 0.0f, 0.0f, 1.0f}
+    }};
 
-    //Global Variable
-    float x_hat[4] = {0.0f, 0.0f, 0.0f, 0.0f}; 
-    float u = 0.0f;
-    float u_filtered = u; 
+    Matrix4x4 R = {{
+        {0.01f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 0.01f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 5.0f, 0.0f},
+        {0.0f, 0.0f, 0.0f, 5.0f}
+    }};
 
-    const float deadzone_threshold = 0.2f;
-    const float max_boost = 0.05f;
-    const float TORQUE_LIMIT = 2.0f;
+    // Kalman Gain
+    Matrix4x4 K_k = {{
+        {0.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 0.0f, 0.0f}
+    }};
 };
 
 #endif

@@ -582,16 +582,17 @@ def ekf_simulation_nonlinear_discrete(x0, P0, K,t_eval, Q, R,
         x_hat, P, L = ekf_correction(x_pred, P_prev, z_k, R, h_func, H_func, V_func)
         
         # True state update with (disturbances + impulse )
-        epsilon = 1e-6  # duration of impulse approximation
+        epsilon = 1e-2  # duration of impulse approximation
         if abs(dt*k - t_impulse) < epsilon:
+            print(f"Impulse Applied, Impulse is {impulse}")
             impulse = impulse_magnitude
         else:
             impulse = np.zeros_like(x_true)
         disturbance_noise = disturbance_std*np.random.randn(x_true_traj.shape[0])
 
 
-        dx_true = f_func(x_true, u) + disturbance_noise+impulse
-        x_true = x_true + dt * dx_true
+        dx_true = f_func(x_true, u) 
+        x_true = x_true + dt * dx_true + disturbance_noise+impulse
 
         x_true_traj[:, k+1] = x_true
         x_hat_traj[:, k+1] = x_hat
