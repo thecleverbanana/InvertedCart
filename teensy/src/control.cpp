@@ -105,21 +105,33 @@ float Controller::updateEKF_LQG(float x_meas, float dx_meas, float theta_meas, f
      // Current measurement as state
      State z_k = {x_meas, dx_meas, theta_meas, dtheta_meas};
 
-     // Control input u = -K * x_hat
-     for (int i = 0; i < 4; ++i) {
-         u -= K[i] * x_hat[i]; // K: your controller gain, assumed K[4]
-     }
- 
      // ===== EKF Estimation (Prediction Step) =====
      State x_pred;
      Matrix4x4 P_pred;
-     ekf_estimation(x_hat, P, u, Q, dt, f_func, A_func, W_func, x_pred, P_pred);
+     ekf_estimation(x_hat, P, u_prev, Q, dt, f_func, A_func, W_func, x_pred, P_pred);
  
      // ===== EKF Correction (Update Step) =====
      ekf_correction(x_pred, P_pred, z_k, R, h_func, H_func, V_func);
- 
-     // Return control input
-     return u;
+
+    // Control input u = -K * x_hat
+    float u_current = 0.0f;
+    for (int i = 0; i < 4; ++i) {
+        u_current -= K[i] * x_hat[i]; // K: your controller gain, assumed K[4]
+    }
+    
+    u_prev = u_current;
+
+    // --- Debug print ---
+     Serial.print(">");
+     Serial.printf("x_hat: %7.4f m", x_hat[0]); Serial.printf(",");
+     Serial.printf("dx_hat: %6.3f m/s", x_hat[1]);Serial.printf(",");
+     Serial.printf("theta_hat: %7.4f rad", x_hat[2]);Serial.printf(",");
+     Serial.printf("dtheta_hat: %6.3f rad/s", x_hat[3]);Serial.printf(",");
+     Serial.printf("P: %6.3f rad/s", P);
+     Serial.println();
+
+    // Return control input
+     return u_current;
 }
 
 float Controller::lowPassFilter(float new_value, float prev_filtered_value, float alpha = 0.9f) {
@@ -196,7 +208,7 @@ Matrix4x4 Controller::A_func(const State& x, float tau) {
     float denom1 = std::pow(1.0f - 0.0768539348317381f * cos_theta_sq, 2);
     float denom2 = 5.082572504e-5f - 3.90615696e-6f * cos_theta_sq;
 
-    // Prepare matrix
+    // Prepare matrix 
     Matrix4x4 A = { 0 };
 
     A[0][1] = 1.0f;

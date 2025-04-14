@@ -4,9 +4,10 @@
 #include "motor.hpp"
 #include "utils.hpp"
 #include <array>
+#include <cmath>
 
-using State = std::array<float, 4>;
-using Matrix4x4 = std::array<std::array<float, 4>, 4>;
+using State = std::array<double, 4>;
+using Matrix4x4 = std::array<std::array<double, 4>, 4>;
 
 class Controller {
 public:
@@ -53,16 +54,17 @@ private:
     //Global Variable
     State x_hat = {0.0f, 0.0f, 0.0f, 0.0f};
     float u = 0.0f;
-    float u_filtered = u; 
+    float u_prev = 0.0f;
+    double u_filtered = u; 
     const float deadzone_threshold = 0.2f;
     const float max_boost = 0.05f;
     const float TORQUE_LIMIT = 2.0f;
 
     Matrix4x4 P = {{
-        {0.01f, 0.0f, 0.0f, 0.0f}, // pos variance: 0.01 m^2
-        {0.0f, 0.1f, 0.0f, 0.0f},  // vel variance: 0.1 (m/s)^2
-        {0.0f, 0.0f, 0.1f, 0.0f},  // theta variance: 0.1 rad^2
-        {0.0f, 0.0f, 0.0f, 0.5f}   // dtheta variance: 0.5 (rad/s)^2
+        {1e-3f, 0.0f, 0.0f, 0.0f}, // pos variance: 0.01 m^2
+        {0.0f, 1e-2f, 0.0f, 0.0f},  // vel variance: 0.1 (m/s)^2
+        {0.0f, 0.0f, 1e-2f, 0.0f},  // theta variance: 0.1 rad^2
+        {0.0f, 0.0f, 0.0f, 1e-1f}   // dtheta variance: 0.5 (rad/s)^2
     }};
     
      //A Matrix(discrete)
@@ -82,7 +84,7 @@ private:
     };
 
     // LQR gain(K)(discrete)
-    float K[4] = {
+    double K[4] = {
         0.38283111f,
         1.26933848f,
         3.63235362f,
@@ -98,17 +100,17 @@ private:
     }};
     
     Matrix4x4 Q = {{
-        {1.0f, 0.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f, 0.0f},
-        {0.0f, 0.0f, 1.0f, 0.0f},
-        {0.0f, 0.0f, 0.0f, 1.0f}
+        {0.005f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 0.005f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 0.005f, 0.0f},
+        {0.0f, 0.0f, 0.0f, 0.005f}
     }};
 
     Matrix4x4 R = {{
         {0.01f, 0.0f, 0.0f, 0.0f},
         {0.0f, 0.01f, 0.0f, 0.0f},
-        {0.0f, 0.0f, 5.0f, 0.0f},
-        {0.0f, 0.0f, 0.0f, 5.0f}
+        {0.0f, 0.0f, 0.1f, 0.0f},
+        {0.0f, 0.0f, 0.0f, 0.1f}
     }};
 
     // Kalman Gain

@@ -83,25 +83,49 @@ State state_scalar_mul(const State& a, float scalar) {
 // =====================
 
 Matrix4x4 inverse_matrix(const Matrix4x4& A) {
-    Matrix4x4 inv = mat_identity();
-    Matrix4x4 m = A;
+    Matrix4x4 inv = mat_identity(); // Initialize inverse as identity matrix
+    Matrix4x4 m = A;                // Copy input matrix to work on
 
-    const int N = 4;
+    const int N = 4;                // Matrix size (4x4)
+    const float epsilon = 1e-8f;    // Threshold for singularity check
 
-    // Forward elimination
     for (int i = 0; i < N; ++i) {
-        float diag = m[i][i];
-        if (std::abs(diag) < 1e-8f) {
-            Serial.printf("Matrix inversion failed: singular matrix");
+        // Step 1: Partial Pivoting
+        // Find the row with the largest absolute value in column i (from row i to N-1)
+        int maxRow = i;
+        float maxVal = std::abs(m[i][i]);
+        for (int k = i + 1; k < N; ++k) {
+            float val = std::abs(m[k][i]);
+            if (val > maxVal) {
+                maxVal = val;
+                maxRow = k;
+            }
         }
 
+        // Step 2: Check for singularity
+        if (maxVal < epsilon) {
+            Serial.printf("Matrix inversion failed: singular matrix\n");
+            return inv; // Return partially computed inverse (could throw exception instead)
+        }
+
+        // Step 3: Swap rows if necessary
+        if (maxRow != i) {
+            for (int j = 0; j < N; ++j) {
+                std::swap(m[i][j], m[maxRow][j]);
+                std::swap(inv[i][j], inv[maxRow][j]);
+            }
+        }
+
+        // Step 4: Normalize the pivot row
+        float diag = m[i][i]; // Pivot element after swapping
         for (int j = 0; j < N; ++j) {
             m[i][j] /= diag;
             inv[i][j] /= diag;
         }
 
+        // Step 5: Eliminate other rows (above and below pivot)
         for (int k = 0; k < N; ++k) {
-            if (k == i) continue;
+            if (k == i) continue; // Skip the pivot row
             float factor = m[k][i];
             for (int j = 0; j < N; ++j) {
                 m[k][j] -= factor * m[i][j];
@@ -110,6 +134,6 @@ Matrix4x4 inverse_matrix(const Matrix4x4& A) {
         }
     }
 
-    return inv;
+    return inv; // Return the computed inverse
 }
 

@@ -3,8 +3,8 @@
 #include <array>
 #include <cmath>
 
-using State = std::array<float, 4>;
-using Matrix4x4 = std::array<std::array<float, 4>, 4>;
+using State = std::array<double, 4>;
+using Matrix4x4 = std::array<std::array<double, 4>, 4>;
 
 // Estimates the fused position using complementary filter.
 // Combines encoder-based position estimation with acceleration-based integration
