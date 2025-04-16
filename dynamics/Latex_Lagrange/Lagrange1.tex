@@ -32,44 +32,44 @@
 
 \section*{Define Lagrange}
 \begin{multline*}
-T= 0.5 I_{b} \dot{\phi}^{2} + \frac{0.5 I_{w} \dot{x}^{2}}{r^{2}} + 0.5 M_{b} \left(L_{b}^{2} \dot{\phi}^{2} + 2 L_{b} \dot{\phi} \dot{x} \cos{\left(\phi \right)} + \dot{x}^{2}\right) + 0.5 M_{w} \dot{x}^{2}
+T= 0.5 I_{b} \dot{\theta}^{2} + \frac{0.5 I_{w} \dot{x}^{2}}{r^{2}} + 0.5 M_{b} \left(r_{b}^{2} \dot{\theta}^{2} + 2 r_{b} \dot{\theta} \dot{x} \cos{\left(\theta \right)} + \dot{x}^{2}\right) + 0.5 M_{w} \dot{x}^{2}
 \end{multline*}
 \begin{multline*}
-T= L_{b} M_{b} g \cos{\left(\phi \right)}
+T= r_{b} M_{b} g \cos{\left(\theta \right)}
 \end{multline*}
 \begin{multline*}
-L= 0.5 I_{b} \dot{\phi}^{2} + \frac{0.5 I_{w} \dot{x}^{2}}{r^{2}} - L_{b} M_{b} g \cos{\left(\phi \right)} + 0.5 M_{b} \left(L_{b}^{2} \dot{\phi}^{2} + 2 L_{b} \dot{\phi} \dot{x} \cos{\left(\phi \right)} + \dot{x}^{2}\right) + 0.5 M_{w} \dot{x}^{2}
+L= 0.5 I_{b} \dot{\theta}^{2} + \frac{0.5 I_{w} \dot{x}^{2}}{r^{2}} - r_{b} M_{b} g \cos{\left(\theta \right)} + 0.5 M_{b} \left(r_{b}^{2} \dot{\theta}^{2} + 2 r_{b} \dot{\theta} \dot{x} \cos{\left(\theta \right)} + \dot{x}^{2}\right) + 0.5 M_{w} \dot{x}^{2}
 \end{multline*}
 
 \section*{X Coordinate}
 \begin{multline*}
-\frac{\partial L}{\partial \dot{x}}= \dot{\phi} \left(\frac{I_{b}}{r} + \frac{L_{b}^{2} M_{b}}{r} + L_{b} M_{b} \cos{\left(\phi \right)}\right) + \dot{x} \left(\frac{I_{w}}{r^{2}} + \frac{L_{b} M_{b} \cos{\left(\phi \right)}}{r} + M_{b} + M_{w}\right)
+\frac{\partial L}{\partial \dot{x}}= \dot{\theta} \left(\frac{I_{b}}{r} + \frac{r_{b}^{2} M_{b}}{r} + r_{b} M_{b} \cos{\left(\theta \right)}\right) + \dot{x} \left(\frac{I_{w}}{r^{2}} + \frac{r_{b} M_{b} \cos{\left(\theta \right)}}{r} + M_{b} + M_{w}\right)
 \end{multline*}
 \begin{multline*}
-\frac{d}{dt}(\frac{\partial L}{\partial \dot{x}})= - L_{b} M_{b} \dot{\phi}^{2} \sin{\left(\phi \right)} - \frac{L_{b} M_{b} \dot{\phi} \dot{x} \sin{\left(\phi \right)}}{r} \\
-+ \ddot{\phi} \left(\frac{I_{b}}{r} + \frac{L_{b}^{2} M_{b}}{r} + L_{b} M_{b} \cos{\left(\phi \right)}\right) + \ddot{x} \left(\frac{I_{w}}{r^{2}} + \frac{L_{b} M_{b} \cos{\left(\phi \right)}}{r} + M_{b} + M_{w}\right)
+\frac{d}{dt}(\frac{\partial L}{\partial \dot{x}})= - r_{b} M_{b} \dot{\theta}^{2} \sin{\left(\theta \right)} - \frac{r_{b} M_{b} \dot{\theta} \dot{x} \sin{\left(\theta \right)}}{r} \\
++ \ddot{\theta} \left(\frac{I_{b}}{r} + \frac{r_{b}^{2} M_{b}}{r} + r_{b} M_{b} \cos{\left(\theta \right)}\right) + \ddot{x} \left(\frac{I_{w}}{r^{2}} + \frac{r_{b} M_{b} \cos{\left(\theta \right)}}{r} + M_{b} + M_{w}\right)
 \end{multline*}
 \begin{multline*}
-\frac{\partial L}{\partial x}= - \frac{L_{b} M_{b} \dot{\phi} \dot{x} \sin{\left(\phi \right)}}{r} + \frac{L_{b} M_{b} g \sin{\left(\phi \right)}}{r}
+\frac{\partial L}{\partial x}= - \frac{r_{b} M_{b} \dot{\theta} \dot{x} \sin{\left(\theta \right)}}{r} + \frac{r_{b} M_{b} g \sin{\left(\theta \right)}}{r}
 \end{multline*}
 
 \begin{multline*}
-- L_{b} M_{b} \dot{\phi}^{2} \sin{\left(\phi \right)} - \frac{L_{b} M_{b} g \sin{\left(\phi \right)}}{r} + \ddot{\phi} \left(\frac{I_{b}}{r} + \frac{L_{b}^{2} M_{b}}{r} + L_{b} M_{b} \cos{\left(\phi \right)}\right)\\
-+ \ddot{x} \left(\frac{I_{w}}{r^{2}} + \frac{L_{b} M_{b} \cos{\left(\phi \right)}}{r} + M_{b} + M_{w}\right)=-\frac{\tau}{r}
+- r_{b} M_{b} \dot{\theta}^{2} \sin{\left(\theta \right)} - \frac{r_{b} M_{b} g \sin{\left(\theta \right)}}{r} + \ddot{\theta} \left(\frac{I_{b}}{r} + \frac{r_{b}^{2} M_{b}}{r} + r_{b} M_{b} \cos{\left(\theta \right)}\right)\\
++ \ddot{x} \left(\frac{I_{w}}{r^{2}} + \frac{r_{b} M_{b} \cos{\left(\theta \right)}}{r} + M_{b} + M_{w}\right)=-\frac{\tau}{r}
 \end{multline*}
 
 \section*{$\theta$ Coordinate}
 \begin{multline*}
-\frac{\partial L}{\partial \dot{\theta}}= \dot{\phi} \left(I_{b} + L_{b}^{2} M_{b}\right) + \dot{x} L_{b} M_{b} \cos{\left(\phi \right)}
+\frac{\partial L}{\partial \dot{\theta}}= \dot{\theta} \left(I_{b} + r_{b}^{2} M_{b}\right) + \dot{x} r_{b} M_{b} \cos{\left(\theta \right)}
 \end{multline*}
 \begin{multline*}
-\frac{d}{dt}(\frac{\partial L}{\partial \dot{\theta}})= - L_{b} M_{b} \dot{\phi} \dot{x} \sin{\left(\phi \right)} + \ddot{\phi} \left(I_{b} + L_{b}^{2} M_{b}\right) + \ddot{x} L_{b} M_{b} \cos{\left(\phi \right)}
+\frac{d}{dt}(\frac{\partial L}{\partial \dot{\theta}})= - r_{b} M_{b} \dot{\theta} \dot{x} \sin{\left(\theta \right)} + \ddot{\theta} \left(I_{b} + r_{b}^{2} M_{b}\right) + \ddot{x} r_{b} M_{b} \cos{\left(\theta \right)}
 \end{multline*}
 \begin{multline*}
-\frac{\partial L}{\partial \theta}= - L_{b} M_{b} \dot{\phi} \dot{x} \sin{\left(\phi \right)} + L_{b} M_{b} g \sin{\left(\phi \right)}
+\frac{\partial L}{\partial \theta}= - r_{b} M_{b} \dot{\theta} \dot{x} \sin{\left(\theta \right)} + r_{b} M_{b} g \sin{\left(\theta \right)}
 \end{multline*}
 \begin{multline*}
-- L_{b} M_{b} g \sin{\left(\phi \right)} + \ddot{\phi} \left(I_{b} + L_{b}^{2} M_{b}\right) + \ddot{x}L_{b} M_{b} \cos{\left(\phi \right)}=\tau
+- r_{b} M_{b} g \sin{\left(\theta \right)} + \ddot{\theta} \left(I_{b} + r_{b}^{2} M_{b}\right) + \ddot{x}r_{b} M_{b} \cos{\left(\theta \right)}=\tau
 \end{multline*}
 
 
