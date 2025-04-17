@@ -25,3 +25,10 @@ Matrix4x4 makeIdentity() {
 }
 
 
+// Function to compute x-velocity from x-acceleration
+float computeVelocity(const float prev_acc, const float curr_acc,float dt, float prev_velocity) {
+    // Trapezoidal rule: v[n] = v[n-1] + (dt/2)*(a[n] + a[n-1])
+    float velocity = prev_velocity + (dt / 2.0f) * (curr_acc + prev_acc);
+
+    return velocity;
+}

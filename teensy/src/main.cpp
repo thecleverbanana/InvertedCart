@@ -5,7 +5,9 @@
 #include "utils.hpp"
 
 //frequency
-float dt = 0.005f; // s
+float dt = 0.003f; // s
+const unsigned long control_period_us = 3000;  // 3ms = 0.003s = 333Hz
+unsigned long next_time = micros();
 // Global Objects
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can1;
 
@@ -24,6 +26,9 @@ float rightInitialAngle = 0.0f;
 const float wheelRadius = 0.06f;
 //IMU data
 IMU_DATA imu_board_data, imu_motor_data;
+float prev_Xacc = 0.0f;
+float prev_Xvel = 0.0f;
+float Xacc = 0.0f;
 
 //For control
 float x[4];   //Real Data
@@ -90,66 +95,68 @@ void setup() {
 
 
   //Initialize x_hat for LQG
-  x_hat[0] = -radians(leftMotor.getCurrentDeltaAngle())*wheelRadius;
-  x_hat[1] = imu_motor_data.Xacc;
-  x_hat[2] = imu_motor_data.Yangle;
-  x_hat[3] = imu_motor_data.Ygyro;
+  // x_hat[0] = -radians(leftMotor.getCurrentDeltaAngle())*wheelRadius;
+  // Xacc = imu_motor_data.Xacc;
+  // x_hat[1] = computeVelocity(prev_Xacc,Xacc,dt,prev_Xvel);
+  // prev_Xacc = Xacc;
+  // prev_Xvel = x_hat[1];
+  // x_hat[2] = imu_motor_data.Yangle;
+  // x_hat[3] = imu_motor_data.Ygyro;
+
+  //debug x_hat
+  x_hat[0] = 0.0f;
+  x_hat[1] = 0.0f;
+  x_hat[2] = 0.1f;
+  x_hat[3] = 0.1f;
 
   controller.initializeState(x_hat);
 }
 
 void loop() {
-  // Get measured values for estimation
-  imu_board.update();
-  imu_motor.update();
+  if (micros() >= next_time) {
+    next_time += control_period_us;
 
-  imu_board_data = imu_board.getIMUData();
-  imu_motor_data = imu_motor.getIMUData();
+    unsigned long start_time = micros();
 
-  // imu_board.serialPlotter(imu_board_data);
-  // imu_motor.serialPlotter(imu_motor_data);
+    // --- start ---
+    imu_board.update();
+    imu_motor.update();
 
-  x[0] = -radians(leftMotor.getCurrentDeltaAngle())*wheelRadius;
-  x[0] = fusedPositionEstimate(x[0], x[1], dt);
-  x[1] = imu_motor_data.Xacc;
-  x[2] = imu_motor_data.Yangle;
-  x[3] = imu_motor_data.Ygyro;
+    imu_board_data = imu_board.getIMUData();
+    imu_motor_data = imu_motor.getIMUData();
 
-  Serial.print(">");
-  Serial.printf("x: %7.4f m", x[0]);Serial.printf(",");
-  Serial.printf("dx: %6.3f m", x[1]);Serial.printf(",");
-  Serial.printf("theta: %7.4f m", x[2]);Serial.printf(",");
-  Serial.printf("dtheta: %6.3f m", x[3]);Serial.printf(",");
-  Serial.println();
+    // debug
+    x[0] = 0.0f;
+    x[1] = 0.0f;
+    x[2] = 0.0f;
+    x[3] = 0.0f;
 
-  //Apply Control
-  // float u = controller.updateLQR(x[0], x[1], x[2], x[3]);
-  // float u = controller.updateLQG(x[0], x[1], x[2], x[3]);
-  float u = controller.updateEKF_LQG(x[0], x[1], x[2], x[3]);
-  Serial.print(">");
-  Serial.printf("u: %7.4f m", u);
-  Serial.println();
+    float u = controller.updateEKF_LQG(x[0], x[1], x[2], x[3]);
+    // leftMotor.setTorque(u / 2);
+    // rightMotor.setTorque(u / 2);
 
-  // leftMotor.setTorque(u/2);
-  // rightMotor.setTorque(u/2); 
+    if (Serial.available()) {
+      char cmd = Serial.read();
+      if (cmd == 's') {
+        leftMotor.stop();
+        rightMotor.stop();
+        while (1);
+      }
+    }
 
-  //Debug
-  // controller.debugFunc(x_test,u_test);
+    // --- finish control ---
 
-  if (Serial.available()) {
-    char cmd = Serial.read();
-    if (cmd == 's') { 
-      leftMotor.stop();
-      rightMotor.stop();
-      while (1);
+    unsigned long elapsed = micros() - start_time;
+
+    // frequency print
+    static unsigned long last_debug = 0;
+    if (millis() - last_debug >= 500) {
+      Serial.print("Loop time (us): ");
+      Serial.print(elapsed);
+      Serial.print(" | Frequency (Hz): ");
+      Serial.println(1e6 / (float)elapsed);
+      last_debug = millis();
     }
   }
-
-  //dynamically update control frequency
-  // unsigned long now = millis();
-  // static unsigned long last_time = 0;
-  // float dt_dynamic = (now - last_time) / 1000.0f;
-  // last_time = now;
-  // controller.setDt(dt_dynamic);
-  delay(dt*1000); //ms
 }
+

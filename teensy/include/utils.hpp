@@ -22,4 +22,6 @@ float fusedPositionEstimate(float encoderPosition, float accelX, float dt);
 
 Matrix4x4 makeIdentity();
 
+float computeVelocity(const float prev_acc, const float curr_acc,float dt, float prev_velocity);
+
 #endif

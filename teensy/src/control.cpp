@@ -72,12 +72,14 @@ float Controller::updateLQG(float x_meas, float dx_meas, float theta_meas, float
     x_hat= x_hat_pred + L * innovation;
 
     // --- Debug print ---
-    // Serial.print(">");
-    // Serial.printf("x_hat: %7.4f m, ", x_hat(0,0));
-    // Serial.printf("dx_hat: %6.3f m/s, ", x_hat(1,0));
-    // Serial.printf("theta_hat: %7.4f rad, ", x_hat(2,0));
-    // Serial.printf("dtheta_hat: %6.3f rad/s, ", x_hat(3,0));
-    // Serial.printf("tau: %6.3f Nm\n", u);
+    Serial.print(">");
+    Serial.print("x_hat:");     Serial.print(x_hat(0,0)); Serial.print(",");
+    Serial.print("dx_hat:");    Serial.print(x_hat(1,0)); Serial.print(",");
+    Serial.print("theta_hat:"); Serial.print(x_hat(2,0)); Serial.print(",");
+    Serial.print("dtheta_hat:");Serial.print(x_hat(3,0)); Serial.print(",");
+    Serial.print("tau:");       Serial.print(u);
+    Serial.print("\r\n"); 
+
 
     return u;
 }
