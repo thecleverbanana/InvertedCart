@@ -8,6 +8,7 @@
 float dt = 0.003f; // s
 const unsigned long control_period_us = 3000;  // 3ms = 0.003s = 333Hz
 unsigned long next_time = micros();
+
 // Global Objects
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> can1;
 

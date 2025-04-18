@@ -183,7 +183,9 @@ def lqg_simulation_linear_discrete(x0, sys_d, K, L, t_eval,
                                    disturbance_std = None,
                                    t_impulse = None,
                                    impulse_magnitude = None,
-                                   low_pass_enabled = False):
+                                   low_pass_enabled = False,
+                                   debug_enabled = False,
+                                   ):
     """
     Simulate discrete-time LQG closed-loop system
 
@@ -282,7 +284,11 @@ def lqg_simulation_linear_discrete(x0, sys_d, K, L, t_eval,
         else:
             impulse = np.zeros_like(x_true)
         disturbance_noise = disturbance_std*np.random.randn(A_d.shape[0])
-        x_true = A_d @ x_true + B_d.flatten() * u + disturbance_noise + impulse
+
+        if(debug_enabled):
+            x_true = np.array([0.0, 0.0, 0.0, 0.0])
+        else:
+            x_true = A_d @ x_true + B_d.flatten() * u + disturbance_noise + impulse
 
         # Store trajectories
         x_true_traj[:, k + 1] = x_true
@@ -304,6 +310,7 @@ def f_func(x, tau):
     term3_xdd = -3.83193997776e-5 * sin_theta * cos_theta / denominator
     term4_xdd = 1.3239429264e-6 * sin_theta * dtheta**2 / denominator
     xdd = term1_xdd + term2_xdd + term3_xdd + term4_xdd
+    print(f"xdd is {xdd}")
 
     # thetadd (angular acceleration)
     term1_thetadd = 0.0019764 * tau * cos_theta / denominator
@@ -311,6 +318,7 @@ def f_func(x, tau):
     term3_thetadd = -3.90615696e-6 * sin_theta * cos_theta * dtheta**2 / denominator
     term4_thetadd = 0.00147106890936 * sin_theta / denominator
     thetadd = term1_thetadd + term2_thetadd + term3_thetadd + term4_thetadd
+    print(f"thetadd is {thetadd}")
 
     # Return state derivative: [dx, ddx, dtheta, ddtheta]
     return np.array([vel, xdd, dtheta, thetadd])
@@ -466,6 +474,7 @@ def ekf_simulation_nonlinear_discrete(x0, P0, K,t_eval, Q, R,
                                       t_impulse=None,
                                       impulse_magnitude=None,
                                       low_pass_enabled=False,
+                                      debug_enabled = False,
                                       f_func = f_func, A_func=A_func, W_func=W_func,
                                       h_func=h_func, H_func=H_func, V_func=V_func):
     """
@@ -582,17 +591,21 @@ def ekf_simulation_nonlinear_discrete(x0, P0, K,t_eval, Q, R,
         x_hat, P, L = ekf_correction(x_pred, P_prev, z_k, R, h_func, H_func, V_func)
         
         # True state update with (disturbances + impulse )
-        epsilon = 1e-2  # duration of impulse approximation
-        if abs(dt*k - t_impulse) < epsilon:
-            print(f"Impulse Applied, Impulse is {impulse}")
-            impulse = impulse_magnitude
+        if(debug_enabled):
+            x_true = np.array([0.0, 0.0, 0.0, 0.0])
+
         else:
-            impulse = np.zeros_like(x_true)
-        disturbance_noise = disturbance_std*np.random.randn(x_true_traj.shape[0])
+            epsilon = 1e-6  # duration of impulse approximation
+            if abs(dt*k - t_impulse) < epsilon:
+                print(f"Impulse Applied, Impulse is {impulse}")
+                impulse = impulse_magnitude
+            else:
+                impulse = np.zeros_like(x_true)
 
+            disturbance_noise = disturbance_std*np.random.randn(x_true_traj.shape[0])
 
-        dx_true = f_func(x_true, u) 
-        x_true = x_true + dt * dx_true + disturbance_noise+impulse
+            dx_true = f_func(x_true, u) 
+            x_true = x_true + dt * dx_true + disturbance_noise+impulse
 
         x_true_traj[:, k+1] = x_true
         x_hat_traj[:, k+1] = x_hat
