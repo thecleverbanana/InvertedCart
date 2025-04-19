@@ -273,7 +273,10 @@ def lqg_simulation_linear_discrete(x0, sys_d, K, L, t_eval,
 
         # Observer: predict and correct with ( Measurement noise )
         measurement_noise = measurement_noise_std * np.random.randn(C_d.shape[0])
-        y_meas = C_d @ x_true + measurement_noise
+        if(debug_enabled):
+            y_meas = np.array([0.0, 0.0, 0.0, 0.0])
+        else:
+            y_meas = C_d @ x_true + measurement_noise
         x_hat_pred = A_d @ x_hat + B_d.flatten() * u
         x_hat = x_hat_pred + L @ (y_meas - C_d @ x_hat_pred)
 
@@ -310,7 +313,7 @@ def f_func(x, tau):
     term3_xdd = -3.83193997776e-5 * sin_theta * cos_theta / denominator
     term4_xdd = 1.3239429264e-6 * sin_theta * dtheta**2 / denominator
     xdd = term1_xdd + term2_xdd + term3_xdd + term4_xdd
-    print(f"xdd is {xdd}")
+    # print(f"xdd is {xdd}")
 
     # thetadd (angular acceleration)
     term1_thetadd = 0.0019764 * tau * cos_theta / denominator
@@ -318,7 +321,7 @@ def f_func(x, tau):
     term3_thetadd = -3.90615696e-6 * sin_theta * cos_theta * dtheta**2 / denominator
     term4_thetadd = 0.00147106890936 * sin_theta / denominator
     thetadd = term1_thetadd + term2_thetadd + term3_thetadd + term4_thetadd
-    print(f"thetadd is {thetadd}")
+    # print(f"thetadd is {thetadd}")
 
     # Return state derivative: [dx, ddx, dtheta, ddtheta]
     return np.array([vel, xdd, dtheta, thetadd])
@@ -453,10 +456,11 @@ def ekf_correction(x_pred, P_prev, z_k, R, h_func, H_func, V_func):
     v_zero = np.zeros_like(z_k)  #Assumed
     H_k = H_func(x_pred)
     V_k = V_func(x_pred)
-
+   
     # 2. Kalman Gain
     S_k = H_k @ P_prev @ H_k.T + V_k @ R @ V_k.T
     K_k = P_prev @ H_k.T @ np.linalg.inv(S_k)
+    print(K_k)
 
     # 3. State update
     y_k = z_k - h_func(x_pred)  # measurement residual
@@ -469,6 +473,158 @@ def ekf_correction(x_pred, P_prev, z_k, R, h_func, H_func, V_func):
     return x_upd, P_upd, K_k
 
 def ekf_simulation_nonlinear_discrete(x0, P0, K,t_eval, Q, R,
+                                      measurement_noise_std=None,
+                                      disturbance_std=None,
+                                      t_impulse=None,
+                                      impulse_magnitude=None,
+                                      low_pass_enabled=False,
+                                      debug_enabled = False,
+                                      f_func = f_func, A_func=A_func, W_func=W_func,
+                                      h_func=h_func, H_func=H_func, V_func=V_func):
+    """
+    Simulate a discrete-time nonlinear Extended Kalman Filter (EKF) closed-loop system.
+
+    This function simulates the closed-loop dynamics of a nonlinear system controlled
+    by state feedback (LQR), with state estimation performed by an EKF.
+  
+    Note: In this simulation, I assume the observor are full state and linear.
+
+    Parameters
+    ----------
+    x0 : Initial state of the true system.
+    P0 : Initial estimate of the state covariance.
+    K : State feedback gain matrix.
+    t_eval :Discrete time points for the simulation.
+    Q :Process noise covariance matrix.
+    R :Measurement noise covariance matrix.
+    f_func : function
+        Nonlinear system dynamics function:
+        f(x, u) -> dx (discrete step)
+    A_func : function
+        Jacobian of system dynamics with respect to state:
+        A(x, u) -> ndarray of shape (n_states, n_states)
+    W_func : function
+        Jacobian of system dynamics with respect to process noise:
+        W(x, u) -> ndarray of shape (n_states, n_process_noise)
+    h_func : function
+        Nonlinear measurement function (assumed full-state observer):
+        h(x) -> measurement vector
+    H_func : function
+        Jacobian of measurement function with respect to state:
+        H(x) -> ndarray of shape (n_measurements, n_states)
+    V_func : function
+        Jacobian of measurement function with respect to measurement noise:
+        V(x) -> ndarray of shape (n_measurements, n_measurement_noise)
+   
+    Returns
+    -------
+    t_eval : ndarray of shape (N,)
+        Time vector.
+
+    x_true_traj : ndarray of shape (n_states, N)
+        True state trajectory of the system.
+
+    x_hat_traj : ndarray of shape (n_states, N)
+        EKF estimated state trajectory.
+
+    tau_traj : ndarray of shape (n_inputs, N)
+        Control input (e.g., torque) trajectory.
+
+    Notes
+    -----
+    - This simulation uses the discrete-time form of EKF.
+    - Use `ekf_estimation` for the time-update (prediction) step.
+    - Use `ekf_correction` for the measurement-update (correction) step.
+    - System must be provided in discrete-time form, or properly discretized.
+    - Measurement and process noises are optional, and default to zero noise.
+    - Impulse disturbance is optional for simulating external disturbances.
+    """
+    n_states = x0.shape[0]
+    N = len(t_eval)
+    dt = t_eval[1] - t_eval[0]
+
+    # Initialize storage
+    x_true_traj = np.zeros((n_states, N))
+    x_hat_traj = np.zeros((n_states, N))
+    P_traj = np.zeros((n_states, n_states, N))
+    tau_traj = np.zeros(N)
+
+    # Initial conditions
+    x_true = x0.copy()
+    x_hat = x0.copy()
+    P = P0.copy()
+
+     # Measurement noise
+    if measurement_noise_std is None:
+        measurement_noise_std = np.array([0.00, 0.00, 0.0, 0.0]) * np.sqrt(dt)
+    else:
+        measurement_noise_std = measurement_noise_std * np.sqrt(dt)
+
+    # Process disturbance
+    if disturbance_std is None:
+        disturbance_std = np.array([0.00, 0.00, 0.00, 0.00]) * np.sqrt(dt)
+    else:
+        disturbance_std = disturbance_std * np.sqrt(dt)
+
+    # Impulse disturbance
+    if t_impulse is None:
+        t_impulse = -1.0  # time that will never be hit
+
+    # Impulse magnitude: array of size (4,)
+    if impulse_magnitude is None:
+        impulse_magnitude = np.zeros_like(x0)
+
+    u = float(-K @ x0)  # initial estimate-based control
+    u_filtered = u  # initialize filter to meaningful value
+    print(f"K:{K}")
+    print(f"K:{x0}")
+    print(f"u_filtered:{u_filtered}")
+
+    for k in range(N-1):
+        # Control based on current estimate
+        u = float(-K @ x_hat)
+        if low_pass_enabled:
+            u_filtered = low_pass_filter(u, u_filtered)  # update filtered value
+            u = u_filtered
+        # u = smooth_deadzone_compensation(u)
+        tau_traj[k] = u
+        
+        # ===== EKF Estimation =====
+        x_pred, P_prev = ekf_estimation(x_hat, P, u, Q, dt, f_func, A_func, W_func)
+    
+        if(debug_enabled):
+            z_k = np.array([0.0, 0.0, 0.0, 0.0])
+        else:
+        # Measurement noise
+            measurement_noise = measurement_noise_std * np.random.randn(x_true_traj.shape[0])
+            z_k = h_func(x_true) + measurement_noise
+
+        # ===== EKF Correction =====
+        x_hat, P, L = ekf_correction(x_pred, P_prev, z_k, R, h_func, H_func, V_func)
+
+        if(debug_enabled):
+            x_true = np.array([0.0, 0.0, 0.0, 0.0])
+        else:
+            # True state update with (disturbances + impulse )
+            epsilon = 1e-6  # duration of impulse approximation
+            if abs(dt*k - t_impulse) < epsilon:
+                # print(f"Impulse Applied, Impulse is {impulse}")
+                impulse = impulse_magnitude
+            else:
+                impulse = np.zeros_like(x_true)
+
+            disturbance_noise = disturbance_std*np.random.randn(x_true_traj.shape[0])
+
+            dx_true = f_func(x_true, u) 
+            x_true = x_true + dt * dx_true + disturbance_noise+impulse
+
+        x_true_traj[:, k+1] = x_true
+        x_hat_traj[:, k+1] = x_hat
+        P_traj[:, :, k+1] = P
+
+    return t_eval, x_true_traj, x_hat_traj, tau_traj
+
+def ekf_simulation_nonlinear_discrete_v1(x0, P0, K,t_eval, Q, R,
                                       measurement_noise_std=None,
                                       disturbance_std=None,
                                       t_impulse=None,
@@ -595,13 +751,12 @@ def ekf_simulation_nonlinear_discrete(x0, P0, K,t_eval, Q, R,
             x_true = np.array([0.0, 0.0, 0.0, 0.0])
 
         else:
-            epsilon = 1e-6  # duration of impulse approximation
+            epsilon = 1e-2  # duration of impulse approximation
             if abs(dt*k - t_impulse) < epsilon:
-                print(f"Impulse Applied, Impulse is {impulse}")
+                # print(f"Impulse Applied, Impulse is {impulse}")
                 impulse = impulse_magnitude
             else:
                 impulse = np.zeros_like(x_true)
-
             disturbance_noise = disturbance_std*np.random.randn(x_true_traj.shape[0])
 
             dx_true = f_func(x_true, u) 
