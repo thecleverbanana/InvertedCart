@@ -16,18 +16,17 @@ public:
     Controller(Motor* left, Motor* right, float dt);
     void initializeState(const float x_hat_init[4]);
     void setDt(float new_dt);
+    float* get_xhat();
     float updateLQR(float x_meas, float dx_meas, float theta_meas, float dtheta_meas); //LQR Control (With feedback) and return u
     float updateLQG(float x_meas, float dx_meas, float theta_meas, float dtheta_meas);  // LQG return u
     float updateEKF_LQG(float x_meas, float dx_meas, float theta_meas, float dtheta_meas);  // LQG return u
-    float updateLQGArchieve(float x_meas, float dx_meas, float theta_meas, float dtheta_meas);
-    void debugFunc(Vectorx4& x_test, float u_test);
 
 
 private:
     Motor* motorLeft;
     Motor* motorRight;
     //Control frequency;
-    float dt = 0.005f;
+    float dt = 0.003f;
 
     float lowPassFilter(float new_value, float prev_filtered_value, float alpha = 0.9f);
     float applySmoothBoost(float u);
@@ -40,9 +39,7 @@ private:
     static Vectorx4 h_func(const Vectorx4& x);
     static Matrix4x4 H_func(const Vectorx4& x);
     static Matrix4x4 V_func(const Vectorx4& x);
-    void ekf_estimation(Vectorx4& x_prev, Matrix4x4& P_prev, float u_prev, const Matrix4x4& Q, float dt, Vectorx4& x_pred, Matrix4x4& P_pred);
-    void ekf_correction(Vectorx4& x_pred, Matrix4x4& P_pred, Vectorx4& z_k, const Matrix4x4& R);
-
+  
     //Global Variable
     Vectorx4 x_hat = {0.0f, 0.0f, 0.0f, 0.0f};
     float u_prev = 0.0f;
@@ -55,7 +52,7 @@ private:
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 10.0f
+        0.0f, 0.0f, 0.0f, 1.0f
     };
     
      //A Matrix(discrete)
@@ -77,10 +74,10 @@ private:
 
     // LQR gain(K)(discrete)
     Vectorx4 K = {
-        0.44769842970689844f,
-        1.4842093951159079f,
-        4.2076051969657025f,
-        1.6206306278241691f
+        0.8841099680413509f,
+        1.790325725994268f,
+        4.295728247270997f,
+        1.494470010838359f
     };
     
     // LQG observer gain (L)(Discrete)
@@ -93,18 +90,18 @@ private:
     
     // Process noise covariance matrix (Q)
     Matrix4x4 Q = {
-        0.01f, 0.0f,    0.0f,    0.0f,
-        0.0f,  0.01f,   0.0f,    0.0f,
-        0.0f,  0.0f,    0.01f,   0.0f,
-        0.0f,  0.0f,    0.0f,    0.01f
+        1.0f, 0.0f,    0.0f,    0.0f,
+        0.0f,  1.0f,   0.0f,    0.0f,
+        0.0f,  0.0f,    1.0f,   0.0f,
+        0.0f,  0.0f,    0.0f,    1.0f
     };
 
     // Measurement noise covariance matrix (R)
     Matrix4x4 R = {
-        0.000000001f, 0.0f,  0.0f,  0.0f,
-        0.0f,    0.000000001f, 0.0f,  0.0f,
-        0.0f,    0.0f,   0.000000001f,  0.0f,
-        0.0f,    0.0f,   0.0f,    0.00000001f
+        1e-06f, 0.0f,  0.0f,  0.0f,
+        0.0f,    1e-06f, 0.0f,  0.0f,
+        0.0f,    0.0f,   1e-06f,  0.0f,
+        0.0f,    0.0f,   0.0f,    1e-06f
     };
 
     // Kalman Gain matrix (K_k)
