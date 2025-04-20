@@ -6,15 +6,22 @@ float fusedPositionEstimate(float encoderPosition, float accelX, float dt) {
 
     const float alpha = 0.98f;
 
-    // 1. Acc Integration
-    accelVelocity += accelX * dt;
-    accelPosition += accelVelocity * dt;
+    // Deadband to remove noise
+    if (fabs(accelX) < 0.05f) accelX = 0.0f;
 
-    // 2. fusion filter
+    // Leaky integration
+    accelVelocity += accelX * dt;
+    accelVelocity *= 0.98f;
+
+    accelPosition += accelVelocity * dt;
+    accelPosition *= 0.995f;
+
+    // Sensor fusion
     float fusedPosition = alpha * encoderPosition + (1.0f - alpha) * accelPosition;
 
     return fusedPosition;
 }
+
 
 Matrix4x4 makeIdentity() {
     Matrix4x4 I = Zeros<4,4>();
@@ -67,9 +74,13 @@ bool invert4x4(const Matrix4x4& input, Matrix4x4& output) {
 }
 
 // Function to compute x-velocity from x-acceleration
-float computeVelocity(const float prev_acc, const float curr_acc,float dt, float prev_velocity) {
-    // Trapezoidal rule: v[n] = v[n-1] + (dt/2)*(a[n] + a[n-1])
-    float velocity = prev_velocity + (dt / 2.0f) * (curr_acc + prev_acc);
+float computeVelocity(const float prev_acc, const float curr_acc, float dt, float prev_velocity) {
+    float avg_acc = 0.5f * (prev_acc + curr_acc);
+
+    if (fabs(avg_acc) < 0.05f) avg_acc = 0.0f;
+
+    float velocity = prev_velocity + avg_acc * dt;
+    velocity *= 0.98f; // decay
 
     return velocity;
 }

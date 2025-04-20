@@ -5,7 +5,7 @@ from scipy.integrate import solve_ivp
 from matplotlib.animation import FuncAnimation
 from IPython.display import HTML
 
-def low_pass_filter(new_value, prev_filtered_value, alpha=0.9):
+def low_pass_filter(new_value, prev_filtered_value, alpha=0.7):
     """
     Simple first-order low-pass filter.
 

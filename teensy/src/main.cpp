@@ -5,8 +5,8 @@
 #include "utils.hpp"
 
 //frequency
-float dt = 0.003f; // s
-const unsigned long control_period_us = 3000;
+float dt = 0.005f; // s
+const unsigned long control_period_us = 5000;
 unsigned long next_time = 0;
 
 // Global Objects
@@ -37,7 +37,7 @@ float z_k[4];   //Real Data
 void setup() {
   // Initialize serial communication
   Serial.begin(115200);
-  while (!Serial);
+  // while (!Serial);
 
   // Initialize Can Bus communication
   can1.begin();
@@ -107,24 +107,43 @@ void loop() {
     imu_board_data = imu_board.getIMUData();
     imu_motor_data = imu_motor.getIMUData();
 
-    // Xacc = imu_motor_data.Xacc;
-    // z_k[0] = fusedPositionEstimate((-radians(leftMotor.getCurrentDeltaAngle()) * wheelRadius),Xacc,dt);
+    Xacc = imu_motor_data.Xacc;
+    z_k[0] = fusedPositionEstimate((-radians(leftMotor.getCurrentDeltaAngle()) * wheelRadius),Xacc,dt);
     z_k[1] = computeVelocity(prev_Xacc, Xacc, dt, prev_Xvel); prev_Xacc = Xacc; prev_Xvel = z_k[1];
     z_k[2] = imu_motor_data.Yangle;
     z_k[3] = imu_motor_data.Ygyro;
 
     float u = controller.updateEKF_LQG(z_k[0], z_k[1], z_k[2], z_k[3]);
+    float* x_hat = controller.get_xhat();
 
-    // --- Apply torque if needed ---
-    // leftMotor.setTorque(u / 2);
-    // rightMotor.setTorque(u / 2);
+    // --- Debug print ---
+    // Serial.print(">");
+    // Serial.print("x_hat:");     Serial.print(x_hat[0]); Serial.print(",");
+    // Serial.print("dx_hat:");    Serial.print(x_hat[1]); Serial.print(",");
+    // Serial.print("theta_hat:"); Serial.print(x_hat[2]); Serial.print(",");
+    // Serial.print("dtheta_hat:");Serial.print(x_hat[3]); Serial.print(",");
+    // Serial.print("tau:");       Serial.print(u);
+    // Serial.print("\r\n"); 
+
+    // Serial.print(">");
+    // Serial.print("zx_hat:");     Serial.print(z_k[0]); Serial.print(",");
+    // Serial.print("dzx_hat:");    Serial.print(z_k[1]); Serial.print(",");
+    // Serial.print("ztheta_hat:"); Serial.print(z_k[2]); Serial.print(",");
+    // Serial.print("dztheta_hat:");Serial.print(z_k[3]); Serial.print(",");
+    // // Serial.print("tau:");       Serial.print(u);
+    // Serial.print("\r\n"); 
+
+
+    // --- Apply torque  ---
+    leftMotor.setTorque(u / 2);
+    rightMotor.setTorque(u / 2);
 
 
     unsigned long now = micros();
     unsigned long loop_time_us = now - start_time;
     float loop_freq_hz = 1e6f / (float)loop_time_us;
-    // Serial.print("Control Frequency: ");
-    // Serial.println(loop_freq_hz);
+    Serial.print("Control Frequency: ");
+    Serial.println(loop_freq_hz);
 
     // Catch up if fall behind too much
     if ((long)(micros() - next_time) > 5 * control_period_us) {

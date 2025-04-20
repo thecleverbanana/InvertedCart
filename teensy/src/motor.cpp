@@ -36,7 +36,7 @@ void Motor::setSpeedRPM(int rpm) {
     msg.buf[7] = (speed >> 24) & 0xFF;
 
     can->write(msg);
-    Serial.printf("Sent speed control command: %d RPM\n", rpm);
+    // Serial.printf("Sent speed control command: %d RPM\n", rpm);
 }
 
 void Motor::setTorque(float torqueNm) {
@@ -61,7 +61,7 @@ void Motor::setTorque(float torqueNm) {
 
     can->write(msg);
 
-    Serial.printf("Sent torque command: %.2f Nm (encoded = %d)\n", torqueNm, torque_int);
+    // Serial.printf("Sent torque command: %.2f Nm (encoded = %d)\n", torqueNm, torque_int);
 }
 
 void Motor::stop() {

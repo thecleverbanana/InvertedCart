@@ -1,6 +1,6 @@
 #include "control.hpp"
 
-Controller::Controller(Motor* left, Motor* right, float dt): motorLeft(left), motorRight(right) {}
+Controller::Controller(Motor* left, Motor* right, float dt): motorLeft(left), motorRight(right),dt(dt) {}
 
 void Controller::initializeState(const float x_hat_init[4]) {
     // Convert input array to Vectorx4
@@ -75,7 +75,7 @@ float Controller::updateLQG(float x_meas, float dx_meas, float theta_meas, float
 
     // Corrected state estimate: x_hat = x_hat_pred + L * innovation
     x_hat= x_hat_pred + L * innovation;
-
+    
     return u;
 }
 
@@ -123,10 +123,14 @@ float Controller::updateEKF_LQG(float x_meas, float dx_meas, float theta_meas, f
     P = (I - K_k * H_k) * P_pred;
 
     // u = -(~K * x_hat)(0,0);
+    // Torque Limit
+    if (u > TORQUE_LIMIT) u = TORQUE_LIMIT;
+    if (u < -TORQUE_LIMIT) u = -TORQUE_LIMIT;
+
     return u;
 }
 
-float Controller::lowPassFilter(float new_value, float prev_filtered_value, float alpha = 0.9f) {
+float Controller::lowPassFilter(float new_value, float prev_filtered_value, float alpha = 0.7f) {
     return alpha * prev_filtered_value + (1.0f - alpha) * new_value;
 }
 
