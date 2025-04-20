@@ -1,5 +1,5 @@
 import numpy as np
-import sympy as sp
+import sympy as spy
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 from matplotlib.animation import FuncAnimation
@@ -36,7 +36,7 @@ def smooth_deadzone_compensation(u, deadzone_threshold=0.2, max_boost=0.05):
     boost = max_boost * np.tanh(u / deadzone_threshold)
     return u + boost
 
-def animate_inverted_pendulum(x_pos, theta, time, Len=0.1, r=0.06, margin=0.2, interval=30):
+def animate_inverted_pendulum(x_pos, theta, time,  save=False, filename="pendulum_animation.mp4", Len=0.1, r=0.06, margin=0.2, interval=30):
     fig, ax = plt.subplots(figsize=(4, 3)) 
     ax.set_aspect('equal')
 
@@ -67,6 +67,10 @@ def animate_inverted_pendulum(x_pos, theta, time, Len=0.1, r=0.06, margin=0.2, i
 
     skip = max(1, len(time) // 300)  # Limit to ~300 frames
     ani = FuncAnimation(fig, update, frames=range(0, len(time), skip), init_func=init, interval=interval, blit=True)
+    if save:
+        ani.save(filename, writer='ffmpeg', fps=1000//interval)
+        print(f"Saved animation to {filename}")
+
     return HTML(ani.to_jshtml())
 
 def lqg_simulation_linear_continuous(x0, sys_c, K, L, t_span, t_eval,
